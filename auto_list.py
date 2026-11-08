@@ -26,7 +26,10 @@ BEST_COUNT = 10                # BEST 영역 미검출 시 상위 N개를 베스
 HEADLESS = True                # False면 크롬 창을 띄우고 최소화
 INTERVAL = 12 * 60 * 60        # 갱신 주기: 12시간
 
-OUT_DIR = r"D:\_C_note\tfreeca"    # 서버가 서빙할 폴더
+OUT_DIR = os.environ.get(
+    "GITHUB_WORKSPACE",
+    r"D:\_C_note\tfreeca"
+)
 OUT_NAME = "index.html"
 output_file = os.path.join(OUT_DIR, OUT_NAME)
 debug_file = os.path.join(OUT_DIR, "debug_page1.html")
@@ -468,9 +471,8 @@ if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
     test_mode = "--test" in sys.argv
 
-    if test_mode:
-        print("=== 테스트 모드 (브라우저/서버 없이 1회 수집) ===")
-        ok, msg = request_crawl(force=True, test_mode=True)
+    if "--github-action" in sys.argv:
+        ok, msg = request_crawl(force=True)
         print(msg)
         sys.exit(0 if ok else 1)
 

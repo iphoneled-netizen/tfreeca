@@ -262,93 +262,156 @@ def collect_items():
 
 
 # ===================== HTML 생성 =====================
+def extract_program_key(title):
+    base = re.split(r"(?:[\s._-]+E\d+|[\s._-]+\d+회|[\s._-]+\d{6}\b)", title, maxsplit=1, flags=re.IGNORECASE)[0]
+    base = re.sub(r"[\s._-]{2,}", " ", base).strip(" ._-")
+    return (base or title).lower()
+
+
 def build_html(items, updated_at):
     meta_refresh_tag = (
         f'<meta http-equiv="refresh" content="{META_REFRESH}">'
         if META_REFRESH > 0 else ""
     )
 
+    today_count = sum(1 for item in items if item["today"])
     rows_html = []
     for idx, item in enumerate(items, 1):
         today_attr = "1" if item["today"] else "0"
+        prog_key = extract_program_key(item["title"])
         date_cls = "date today" if item["today"] else "date"
+        today_mark = '<span class="today-mark">오늘</span>' if item["today"] else ""
         rows_html.append(
-            f'<li class="row" data-today="{today_attr}" data-title="{escape(item["title"].lower())}">'
+            f'<li class="row" data-index="{idx}" data-today="{today_attr}" '
+            f'data-title="{escape(item["title"].lower())}" data-prog="{escape(prog_key)}" '
+            f'data-url="{escape(item["url"])}">'
+            f'<button type="button" class="fav-btn" title="관심 프로그램 즐겨찾기" aria-label="즐겨찾기">☆</button>'
             f'<span class="num">{idx}</span>'
             f'<a class="title" href="{escape(item["url"])}" target="_blank" rel="noopener noreferrer">'
             f'{escape(item["title"])}</a>'
+            f'{today_mark}'
             f'<span class="{date_cls}">{escape(item["date"])}</span>'
+            f'<button type="button" class="copy-btn" title="링크 복사">복사</button>'
             f'</li>'
         )
 
     list_markup = "\n".join(rows_html) if rows_html else '<li class="empty">수집된 목록이 없습니다.</li>'
 
-    return f"""<!doctype html>
+    template = r"""<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-{meta_refresh_tag}
+__META_REFRESH__
 <title>예능 최신 목록</title>
 <style>
-  :root {{
+  :root {
     --bg: #0f172a;
     --card: #1e293b;
+    --card-hover: #263349;
     --line: #334155;
     --text: #f1f5f9;
     --muted: #94a3b8;
     --accent: #38bdf8;
     --today: #34d399;
-  }}
-  * {{ box-sizing: border-box; }}
-  body {{
+    --fav: #fbbf24;
+  }
+  body.light {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --card-hover: #f1f5f9;
+    --line: #e2e8f0;
+    --text: #0f172a;
+    --muted: #64748b;
+    --accent: #2563eb;
+    --today: #059669;
+    --fav: #d97706;
+  }
+  * { box-sizing: border-box; }
+  body {
     margin: 0;
-    padding: 20px 14px 40px;
+    padding: 20px 14px 64px;
     background: var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
-  }}
-  .wrap {{ max-width: 920px; margin: 0 auto; }}
-  .top {{
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  .top {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     gap: 12px;
     margin-bottom: 14px;
-  }}
-  h1 {{ margin: 0; font-size: 20px; font-weight: 700; }}
-  .meta {{ font-size: 13px; color: var(--muted); }}
-  .controls {{
+  }
+  .top-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  h1 { margin: 0; font-size: 20px; font-weight: 700; }
+  .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .controls {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    margin-bottom: 14px;
-  }}
-  input[type="search"] {{
-    flex: 1 1 220px;
-    padding: 9px 12px;
+  }
+  .search-wrap {
+    position: relative;
+    flex: 1 1 240px;
+    display: flex;
+  }
+  input[type="search"] {
+    width: 100%;
+    padding: 9px 34px 9px 12px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--card);
     color: var(--text);
     font-size: 14px;
     outline: none;
-  }}
-  button {{
-    padding: 9px 14px;
+  }
+  input[type="search"]:focus { border-color: var(--accent); }
+  .clear-btn {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    padding: 4px 7px;
+    font-size: 14px;
+  }
+  button, select {
+    padding: 8px 12px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--card);
     color: var(--text);
     font-size: 13px;
     cursor: pointer;
-  }}
-  button.active {{
+  }
+  button:hover { background: var(--card-hover); }
+  button.active {
     border-color: var(--accent);
     color: var(--accent);
-  }}
-  ul.list {{
+    font-weight: 600;
+  }
+  ul.list {
     list-style: none;
     margin: 0;
     padding: 0;
@@ -356,98 +419,336 @@ def build_html(items, updated_at):
     border: 1px solid var(--line);
     border-radius: 10px;
     overflow: hidden;
-  }}
-  li.row {{
+  }
+  li.row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 11px 14px;
+    gap: 10px;
+    padding: 10px 14px;
     border-bottom: 1px solid var(--line);
-  }}
-  li.row:last-child {{ border-bottom: none; }}
-  li.row:hover {{ background: rgba(255, 255, 255, 0.03); }}
-  .num {{
-    width: 30px;
+  }
+  li.row:last-child { border-bottom: none; }
+  li.row:hover { background: var(--card-hover); }
+  li.row.is-fav { background: rgba(251, 191, 36, 0.06); }
+  li.row.is-visited .title { color: var(--muted); }
+  .fav-btn {
+    padding: 2px 6px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .fav-btn.on { color: var(--fav); }
+  .num {
+    width: 28px;
     flex-shrink: 0;
     font-size: 12px;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
-  }}
-  .title {{
+    text-align: right;
+  }
+  .title {
     flex: 1;
     color: var(--text);
     text-decoration: none;
     font-size: 14px;
     line-height: 1.45;
     word-break: keep-all;
-  }}
-  .title:hover {{ color: var(--accent); text-decoration: underline; }}
-  .date {{
+  }
+  .title:hover { color: var(--accent); text-decoration: underline; }
+  .today-mark {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--today);
+  }
+  .date {
     flex-shrink: 0;
     font-size: 12px;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
-  }}
-  .date.today {{ color: var(--today); font-weight: 600; }}
-  .empty {{ padding: 28px; text-align: center; color: var(--muted); font-size: 14px; }}
+    min-width: 44px;
+    text-align: right;
+  }
+  .date.today { color: var(--today); font-weight: 600; }
+  .copy-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .empty { padding: 28px; text-align: center; color: var(--muted); font-size: 14px; }
+  .to-top {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
 </style>
 </head>
 <body>
   <div class="wrap">
     <div class="top">
-      <h1>예능 최신 목록</h1>
-      <div class="meta">갱신: {escape(updated_at)} · 총 <span id="count">{len(items)}</span>건</div>
+      <div>
+        <h1>예능 최신 목록</h1>
+        <div class="meta">갱신: __UPDATED_AT__ · 표시 <span id="count">__TOTAL_COUNT__</span>건 / 전체 __TOTAL_COUNT__건 · 오늘 __TODAY_COUNT__건</div>
+      </div>
+      <div class="top-right">
+        <button id="themeBtn" type="button" onclick="toggleTheme()">라이트 모드</button>
+        <button id="clearVisitBtn" type="button" onclick="clearVisited()">본 기록 초기화</button>
+        <button id="refreshBtn" type="button" onclick="refreshNow()">새로고침</button>
+      </div>
     </div>
-    <div class="controls">
-      <input id="q" type="search" placeholder="프로그램명 검색..." oninput="applyFilter()">
-      <button id="todayBtn" type="button" onclick="toggleToday()">오늘만 보기</button>
-      <button id="refreshBtn" type="button" onclick="refreshNow()">새로고침</button>
+
+    <div class="toolbar">
+      <div class="tabs">
+        <button type="button" class="tab-btn active" data-tab="all" onclick="setTab('all')">전체 (__TOTAL_COUNT__)</button>
+        <button type="button" class="tab-btn" data-tab="today" onclick="setTab('today')">오늘 (__TODAY_COUNT__)</button>
+        <button type="button" class="tab-btn" data-tab="fav" onclick="setTab('fav')">즐겨찾기 (<span id="favCount">0</span>)</button>
+        <button type="button" class="tab-btn" data-tab="unseen" onclick="setTab('unseen')">안 본 글 (<span id="unseenCount">0</span>)</button>
+        <button id="pinFavBtn" type="button" class="active" onclick="togglePinFav()">즐겨찾기 상단 고정</button>
+      </div>
+      <div class="controls">
+        <div class="search-wrap">
+          <input id="q" type="search" placeholder="프로그램명 검색..." oninput="applyFilter()">
+          <button type="button" class="clear-btn" title="검색어 지우기" onclick="clearSearch()">×</button>
+        </div>
+        <select id="sortSel" aria-label="정렬" onchange="applyFilter()">
+          <option value="latest">최신순</option>
+          <option value="title">제목순</option>
+        </select>
+      </div>
     </div>
+
     <ul class="list" id="list">
-      {list_markup}
+      __LIST_MARKUP__
     </ul>
   </div>
+
+  <button type="button" class="to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})">맨 위로</button>
+
 <script>
-  let onlyToday = false;
-  function applyFilter() {{
-    const kw = document.getElementById("q").value.trim().toLowerCase();
-    const rows = document.querySelectorAll("#list .row");
-    let visible = 0;
-    rows.forEach((el) => {{
-      const matchKw = !kw || el.dataset.title.includes(kw);
-      const matchToday = !onlyToday || el.dataset.today === "1";
-      const show = matchKw && matchToday;
-      el.style.display = show ? "flex" : "none";
-      if (show) visible += 1;
-    }});
-    document.getElementById("count").textContent = visible;
-  }}
-  function toggleToday() {{
-    onlyToday = !onlyToday;
-    document.getElementById("todayBtn").classList.toggle("active", onlyToday);
+  var FAV_KEY = "tfreeca_fav_programs_v1";
+  var VISIT_KEY = "tfreeca_visited_urls_v1";
+  var THEME_KEY = "tfreeca_theme_v1";
+  var currentTab = "all";
+  var pinFav = true;
+
+  function loadSet(key) {
+    try {
+      var raw = localStorage.getItem(key);
+      return new Set(raw ? JSON.parse(raw) : []);
+    } catch (e) {
+      return new Set();
+    }
+  }
+  function saveSet(key, setObj) {
+    try {
+      localStorage.setItem(key, JSON.stringify(Array.from(setObj)));
+    } catch (e) {}
+  }
+
+  var favSet = loadSet(FAV_KEY);
+  var visitSet = loadSet(VISIT_KEY);
+
+  function initTheme() {
+    try {
+      var saved = localStorage.getItem(THEME_KEY);
+      if (saved === "light") document.body.classList.add("light");
+    } catch (e) {}
+    updateThemeLabel();
+  }
+  function updateThemeLabel() {
+    var btn = document.getElementById("themeBtn");
+    btn.textContent = document.body.classList.contains("light") ? "다크 모드" : "라이트 모드";
+  }
+  function toggleTheme() {
+    document.body.classList.toggle("light");
+    try {
+      localStorage.setItem(THEME_KEY, document.body.classList.contains("light") ? "light" : "dark");
+    } catch (e) {}
+    updateThemeLabel();
+  }
+
+  function setTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll(".tab-btn").forEach(function(b) {
+      b.classList.toggle("active", b.dataset.tab === tab);
+    });
     applyFilter();
-  }}
-  async function refreshNow() {{
-    const btn = document.getElementById("refreshBtn");
+  }
+
+  function togglePinFav() {
+    pinFav = !pinFav;
+    document.getElementById("pinFavBtn").classList.toggle("active", pinFav);
+    applyFilter();
+  }
+
+  function clearSearch() {
+    document.getElementById("q").value = "";
+    applyFilter();
+  }
+
+  function clearVisited() {
+    visitSet.clear();
+    saveSet(VISIT_KEY, visitSet);
+    applyFilter();
+  }
+
+  function syncRowStates() {
+    var favMatches = 0;
+    var unseenMatches = 0;
+    document.querySelectorAll("#list .row").forEach(function(el) {
+      var prog = el.dataset.prog || "";
+      var url = el.dataset.url || "";
+      var isFav = favSet.has(prog);
+      var isVisited = visitSet.has(url);
+      if (isFav) favMatches += 1;
+      if (!isVisited) unseenMatches += 1;
+      el.classList.toggle("is-fav", isFav);
+      el.classList.toggle("is-visited", isVisited);
+      var fb = el.querySelector(".fav-btn");
+      if (fb) {
+        fb.textContent = isFav ? "★" : "☆";
+        fb.classList.toggle("on", isFav);
+      }
+    });
+    document.getElementById("favCount").textContent = favMatches;
+    document.getElementById("unseenCount").textContent = unseenMatches;
+  }
+
+  function applyFilter() {
+    syncRowStates();
+    var kw = document.getElementById("q").value.trim().toLowerCase();
+    var sortMode = document.getElementById("sortSel").value;
+    var listEl = document.getElementById("list");
+    var rows = Array.from(listEl.querySelectorAll(".row"));
+
+    rows.sort(function(a, b) {
+      if (pinFav) {
+        var af = favSet.has(a.dataset.prog) ? 1 : 0;
+        var bf = favSet.has(b.dataset.prog) ? 1 : 0;
+        if (af !== bf) return bf - af;
+      }
+      if (sortMode === "title") {
+        return a.dataset.title.localeCompare(b.dataset.title, "ko");
+      }
+      return Number(a.dataset.index) - Number(b.dataset.index);
+    });
+
+    var visible = 0;
+    rows.forEach(function(el) {
+      listEl.appendChild(el);
+      var matchKw = !kw || el.dataset.title.indexOf(kw) !== -1;
+      var isFav = favSet.has(el.dataset.prog);
+      var isVisited = visitSet.has(el.dataset.url);
+      var matchTab = true;
+      if (currentTab === "today") matchTab = el.dataset.today === "1";
+      else if (currentTab === "fav") matchTab = isFav;
+      else if (currentTab === "unseen") matchTab = !isVisited;
+
+      var show = matchKw && matchTab;
+      el.style.display = show ? "flex" : "none";
+      if (show) {
+        visible += 1;
+        var numEl = el.querySelector(".num");
+        if (numEl) numEl.textContent = String(visible);
+      }
+    });
+    document.getElementById("count").textContent = visible;
+  }
+
+  document.getElementById("list").addEventListener("click", function(e) {
+    var row = e.target.closest(".row");
+    if (!row) return;
+    if (e.target.closest(".fav-btn")) {
+      var prog = row.dataset.prog || "";
+      if (favSet.has(prog)) favSet.delete(prog);
+      else favSet.add(prog);
+      saveSet(FAV_KEY, favSet);
+      applyFilter();
+      return;
+    }
+    if (e.target.closest(".copy-btn")) {
+      var btn = e.target.closest(".copy-btn");
+      var url = row.dataset.url || "";
+      if (!url) return;
+      var done = function() {
+        btn.textContent = "복사됨";
+        setTimeout(function() { btn.textContent = "복사"; }, 1200);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(done).catch(function() {
+          fallbackCopy(url, done);
+        });
+      } else {
+        fallbackCopy(url, done);
+      }
+      return;
+    }
+    var link = e.target.closest("a.title");
+    if (link) {
+      visitSet.add(row.dataset.url || "");
+      saveSet(VISIT_KEY, visitSet);
+      setTimeout(applyFilter, 100);
+    }
+  });
+
+  function fallbackCopy(text, onDone) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand("copy");
+      onDone();
+    } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  function refreshNow() {
+    var btn = document.getElementById("refreshBtn");
+    if (location.protocol === "file:" || location.hostname.endsWith("github.io")) {
+      location.reload();
+      return;
+    }
     btn.disabled = true;
     btn.textContent = "갱신 중...";
-    try {{
-      const res = await fetch("/refresh");
-      const msg = await res.text();
-      if (res.ok) {{
+    fetch("/refresh")
+      .then(function(res) {
+        return res.text().then(function(msg) { return { ok: res.ok, msg: msg }; });
+      })
+      .then(function(result) {
+        if (result.ok) location.reload();
+        else alert(result.msg);
+      })
+      .catch(function() {
         location.reload();
-      }} else {{
-        alert(msg);
-      }}
-    }} finally {{
-      btn.disabled = false;
-      btn.textContent = "새로고침";
-    }}
-  }}
+      })
+      .finally(function() {
+        btn.disabled = false;
+        btn.textContent = "새로고침";
+      });
+  }
+
+  initTheme();
+  applyFilter();
 </script>
 </body>
 </html>
 """
+
+    return (
+        template
+        .replace("__META_REFRESH__", meta_refresh_tag)
+        .replace("__UPDATED_AT__", escape(updated_at))
+        .replace("__TOTAL_COUNT__", str(len(items)))
+        .replace("__TODAY_COUNT__", str(today_count))
+        .replace("__LIST_MARKUP__", list_markup)
+    )
 
 
 # ===================== 갱신 및 서버 =====================

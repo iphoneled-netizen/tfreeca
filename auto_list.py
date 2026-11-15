@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import json
 import time
 import socket
 import threading
@@ -9,7 +10,7 @@ from datetime import datetime
 from functools import partial
 from html import escape
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urlencode
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -21,14 +22,14 @@ from selenium.webdriver.support import expected_conditions as EC
 
 # ===================== 설정 =====================
 BASE = "https://www.torrentzoa.com/"
-BOARDS = (
-    ("tent", "예능"),
-    ("tdrama", "드라마"),
-    ("tmovie", "영화"),
-)
-LIST_URL = BASE + "board.php?mode=lists&b_id={board_id}&page={page}"
-
 PAGES = (1, 2)                 # 게시판별 수집할 페이지
+BOARDS = (
+    ("tent", "예능", BASE + "board.php?mode=lists&b_id=tent&page={page}", PAGES, "tent", False),
+    ("tdrama", "드라마", BASE + "board.php?mode=lists&b_id=tdrama&page={page}", PAGES, "tdrama", False),
+    ("tmovie", "영화", BASE + "board.php?mode=lists&b_id=tmovie&page={page}", PAGES, "tmovie", False),
+    ("tmovie_week", "주간순위", BASE + "top100.php?b_id=tmovie&hit=Week", (1,), "tmovie", True),
+    ("tmovie_month", "월간순위", BASE + "top100.php?b_id=tmovie&hit=Month", (1,), "tmovie", True),
+)
 HEADLESS = True                # False면 크롬 창을 띄우고 최소화
 INTERVAL = 12 * 60 * 60        # 갱신 주기: 12시간
 PAGE_LOAD_TIMEOUT = 12         # 페이지 로딩 최대 대기(초)
@@ -49,6 +50,7 @@ META_REFRESH = 0               # 보고 있는 창 자동 새로고침(초). 0=�
 
 NOTICE_WORDS = ("notice", "공지")
 SKIP_WIDGET_RE = re.compile(r"(?:^|[^a-z])(?:best|hot|popular|rank)(?:[^a-z]|$)")
+SKIP_RANKING_WIDGET_RE = re.compile(r"(?:^|[^a-z])(?:best|hot)(?:[^a-z]|$)")
 
 # ===================== 제목 정리 =====================
 BRACKET_PREFIX = re.compile(
@@ -219,31 +221,37 @@ def open_in_browser(path):
 
 
 # ===================== 파싱 =====================
-def is_excluded_widget(tag):
-    return bool(SKIP_WIDGET_RE.search(attr_chain(tag)))
+def is_excluded_widget(tag, is_ranking=False):
+    chain = attr_chain(tag)
+    if is_ranking:
+        return bool(SKIP_RANKING_WIDGET_RE.search(chain))
+    return bool(SKIP_WIDGET_RE.search(chain))
 
 
-def parse_page(soup, board_id="tent"):
+def parse_page(soup, board_key="tent", link_board_id=None, is_ranking=False):
     items = []
-    board_token = f"b_id={board_id}"
-    for a in soup.select("a[href*='mode=view']"):
+    target_b_id = link_board_id or board_key
+    board_token = f"b_id={target_b_id}"
+    is_movie = target_b_id == "tmovie"
+
+    for a in soup.select("a[href*='mode=view'], a[href*='wr_id=']"):
         href = a.get("href") or ""
         if board_token not in href:
             continue
 
-        if is_excluded_widget(a):
+        if is_excluded_widget(a, is_ranking=is_ranking):
             continue
 
         raw = a.get_text(" ", strip=True)
         if not raw or raw.startswith("[이용안내]"):
             continue
 
-        if board_id == "tmovie":
+        if is_movie:
             uhd, kor_sub, ai_sub, quality = parse_movie_meta(raw)
         else:
             uhd, kor_sub, ai_sub, quality = False, False, False, 0
 
-        title = clean_title(raw, board_id)
+        title = clean_title(raw, "tmovie" if is_movie else board_key)
         if len(title) < 2:
             continue
 
@@ -263,7 +271,7 @@ def parse_page(soup, board_id="tent"):
                 break
 
         items.append({
-            "board": board_id,
+            "board": board_key,
             "title": title,
             "url": abs_url(href),
             "date": date_txt,
@@ -276,16 +284,130 @@ def parse_page(soup, board_id="tent"):
     return items
 
 
+def default_search_form(target_b_id):
+    return {
+        "action": BASE + "board.php",
+        "method": "get",
+        "queryName": "sc",
+        "placeholder": "티프리카 검색...",
+        "hidden": [
+            {"name": "mode", "value": "lists"},
+            {"name": "b_id", "value": target_b_id},
+        ],
+        "selects": [],
+    }
+
+
+def extract_search_form(soup, target_b_id):
+    best_score = -999
+    best_cfg = None
+    search_param_names = ("sc", "stx", "q", "query", "keyword", "search", "sword", "search_text", "k")
+
+    for form in soup.find_all("form"):
+        if form.find("input", {"type": re.compile(r"^password$", re.IGNORECASE)}):
+            continue
+        action_raw = (form.get("action") or "").strip()
+        if any(w in action_raw.lower() for w in ("login", "register", "member", "logout")):
+            continue
+
+        text_inp = None
+        for inp in form.find_all("input"):
+            itype = (inp.get("type") or "text").strip().lower()
+            iname = (inp.get("name") or "").strip()
+            if itype in ("text", "search") and iname:
+                text_inp = inp
+                if iname.lower() in search_param_names:
+                    break
+        if text_inp is None:
+            continue
+
+        query_name = (text_inp.get("name") or "").strip()
+        if not query_name:
+            continue
+
+        method = (form.get("method") or "get").strip().lower()
+        if method not in ("get", "post"):
+            method = "get"
+
+        full_action = abs_url(action_raw) if action_raw and action_raw != "#" else (BASE + "board.php")
+        parsed_action = urlparse(full_action)
+        clean_action = f"{parsed_action.scheme}://{parsed_action.netloc}{parsed_action.path}"
+
+        hidden_map = {}
+        for k, vals in parse_qs(parsed_action.query, keep_blank_values=True).items():
+            if k:
+                hidden_map[k] = vals[-1] if vals else ""
+
+        for inp in form.find_all("input"):
+            itype = (inp.get("type") or "").strip().lower()
+            iname = (inp.get("name") or "").strip()
+            if itype == "hidden" and iname:
+                hidden_map[iname] = inp.get("value") or ""
+
+        selects = []
+        for sel in form.find_all("select"):
+            sname = (sel.get("name") or "").strip()
+            if not sname:
+                continue
+            opts = []
+            for opt in sel.find_all("option"):
+                label = opt.get_text(" ", strip=True)
+                val = opt.get("value")
+                if val is None:
+                    val = label
+                opts.append({
+                    "value": val,
+                    "label": label or val,
+                    "selected": opt.has_attr("selected"),
+                })
+            if opts:
+                selects.append({"name": sname, "options": opts})
+
+        score = 0
+        if f"b_id={target_b_id}" in action_raw or hidden_map.get("b_id") == target_b_id:
+            score += 20
+        elif "b_id" in hidden_map or "board.php" in clean_action.lower() or hidden_map.get("mode") == "lists":
+            score += 15
+        if query_name.lower() in search_param_names:
+            score += 8
+        if selects:
+            score += 4
+        if "search.php" in clean_action.lower():
+            score -= 5
+        if method == "get":
+            score += 2
+
+        if "b_id" in hidden_map or clean_action.lower().endswith("board.php"):
+            hidden_map["b_id"] = target_b_id
+            if clean_action.lower().endswith("board.php") and "mode" not in hidden_map:
+                hidden_map["mode"] = "lists"
+
+        cfg = {
+            "action": clean_action,
+            "method": method,
+            "queryName": query_name,
+            "placeholder": (text_inp.get("placeholder") or "").strip(),
+            "hidden": [{"name": k, "value": v} for k, v in hidden_map.items()],
+            "selects": selects,
+        }
+        if score > best_score:
+            best_score = score
+            best_cfg = cfg
+
+    return best_cfg
+
+
 def collect_items():
     started_at = time.time()
     driver = make_driver()
     all_items = []
-    seen_urls = set()
-    counts = {board_id: 0 for board_id, _ in BOARDS}
+    search_forms = {}
+    counts = {board_key: 0 for board_key, *_ in BOARDS}
     try:
-        for b_idx, (board_id, board_name) in enumerate(BOARDS):
-            for p_idx, page in enumerate(PAGES):
-                url = LIST_URL.format(board_id=board_id, page=page)
+        for b_idx, (board_key, board_name, url_tpl, pages_tuple, link_b_id, is_ranking) in enumerate(BOARDS):
+            board_seen_urls = set()
+            for p_idx, page in enumerate(pages_tuple):
+                url = url_tpl.format(page=page) if "{page}" in url_tpl else url_tpl
                 print(f"[수집 중] [{board_name}] {page}페이지 로딩...", flush=True)
                 try:
                     driver.get(url)
@@ -296,7 +418,7 @@ def collect_items():
                         pass
                 try:
                     WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='mode=view']"))
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='mode=view'], a[href*='wr_id=']"))
                     )
                 except TimeoutException:
                     print(f"[경고] [{board_name}] {page}페이지 목록 대기 시간 초과, 현재 DOM으로 파싱합니다.", flush=True)
@@ -307,16 +429,29 @@ def collect_items():
                     with open(debug_file, "w", encoding="utf-8") as f:
                         f.write(html)
                 soup = BeautifulSoup(html, "html.parser")
-                for item in parse_page(soup, board_id):
-                    if item["url"] not in seen_urls:
-                        seen_urls.add(item["url"])
+                if p_idx == 0 and board_key not in search_forms:
+                    found_form = extract_search_form(soup, link_b_id or board_key)
+                    if found_form:
+                        search_forms[board_key] = found_form
+                for item in parse_page(soup, board_key, link_b_id, is_ranking):
+                    if item["url"] not in board_seen_urls:
+                        board_seen_urls.add(item["url"])
                         all_items.append(item)
-                        counts[board_id] += 1
+                        counts[board_key] += 1
     finally:
         driver.quit()
-    summary = " · ".join(f"{name} {counts[bid]}" for bid, name in BOARDS)
+
+    for board_key, _, _, _, link_b_id, _ in BOARDS:
+        if board_key not in search_forms:
+            target = link_b_id or board_key
+            if target in search_forms:
+                search_forms[board_key] = search_forms[target]
+            else:
+                search_forms[board_key] = default_search_form(target)
+
+    summary = " · ".join(f"{name} {counts[bkey]}" for bkey, name, *_ in BOARDS)
     print(f"[수집 완료] 총 {len(all_items)}건 ({summary}, {time.time() - started_at:.1f}초)", flush=True)
-    return all_items
+    return all_items, search_forms
 
 
 # ===================== HTML 생성 =====================
@@ -346,19 +481,27 @@ def extract_movie_key(title):
     return key or re.sub(r"[^0-9a-zA-Z가-힣]+", "", (title or "")).lower()
 
 
-def build_html(items, updated_at):
+def build_html(items, updated_at, search_forms=None):
     meta_refresh_tag = (
         f'<meta http-equiv="refresh" content="{META_REFRESH}">'
         if META_REFRESH > 0 else ""
     )
 
+    forms_payload = {}
+    src_forms = search_forms or {}
+    for board_key, _, _, _, link_b_id, _ in BOARDS:
+        target = link_b_id or board_key
+        forms_payload[board_key] = src_forms.get(board_key) or src_forms.get(target) or default_search_form(target)
+    search_forms_json = json.dumps(forms_payload, ensure_ascii=False).replace("</", "\u003c/")
+
     rows_html = []
     for idx, item in enumerate(items, 1):
         board_id = item.get("board", "tent")
         today_attr = "1" if item["today"] else "0"
+        is_movie = board_id in ("tmovie", "tmovie_week", "tmovie_month")
         prog_key = (
             extract_movie_key(item["title"])
-            if board_id == "tmovie"
+            if is_movie
             else extract_program_key(item["title"])
         )
         uhd_attr = "1" if item.get("uhd") else "0"
@@ -391,6 +534,7 @@ def build_html(items, updated_at):
             f'<button type="button" class="ver-btn" style="display:none" title="동일 영화 다른 버전 보기"></button>'
             f'<span class="{date_cls}">{escape(item["date"])}</span>'
             f'<button type="button" class="copy-btn" title="링크 복사">복사</button>'
+            f'<button type="button" class="hide-btn" title="다음 회차 포함 숨기기">숨김</button>'
             f'</li>'
         )
 
@@ -468,12 +612,37 @@ __META_REFRESH__
   .controls {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
   }
   .search-wrap {
     position: relative;
-    flex: 1 1 240px;
+    flex: 1 1 210px;
     display: flex;
+  }
+  .site-search-form {
+    display: flex;
+    flex: 1 1 290px;
+    align-items: center;
+    gap: 6px;
+  }
+  .site-search-selects {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .site-search-input-wrap {
+    flex: 1 1 150px;
+    min-width: 120px;
+    display: flex;
+  }
+  .site-search-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
   }
   input[type="search"] {
     width: 100%;
@@ -651,10 +820,17 @@ __META_REFRESH__
     text-align: right;
   }
   .date.today { color: var(--today); font-weight: 600; }
-  .copy-btn {
+  .copy-btn, .hide-btn {
     padding: 4px 8px;
     font-size: 11px;
     flex-shrink: 0;
+  }
+  .hide-btn {
+    color: var(--muted);
+  }
+  .hide-btn.on {
+    color: var(--accent);
+    border-color: var(--accent);
   }
   .empty { padding: 28px; text-align: center; color: var(--muted); font-size: 14px; }
   .to-top {
@@ -673,6 +849,8 @@ __META_REFRESH__
           <button type="button" class="board-btn active" data-board="tent" onclick="setBoard('tent')">예능</button>
           <button type="button" class="board-btn" data-board="tdrama" onclick="setBoard('tdrama')">드라마</button>
           <button type="button" class="board-btn" data-board="tmovie" onclick="setBoard('tmovie')">영화</button>
+          <button type="button" class="board-btn" data-board="tmovie_week" onclick="setBoard('tmovie_week')">주간순위</button>
+          <button type="button" class="board-btn" data-board="tmovie_month" onclick="setBoard('tmovie_month')">월간순위</button>
         </div>
         <div class="meta">갱신: __UPDATED_AT__ · 표시 <span id="count">0</span>건 / 전체 <span id="boardTotal">0</span>건 · 오늘 <span id="boardToday">0</span>건</div>
       </div>
@@ -688,11 +866,13 @@ __META_REFRESH__
         <button type="button" class="tab-btn active" data-tab="all" onclick="setTab('all')">전체 (<span id="allCount">0</span>)</button>
         <button type="button" class="tab-btn" data-tab="today" onclick="setTab('today')">오늘 (<span id="todayCount">0</span>)</button>
         <button type="button" class="tab-btn" data-tab="fav" onclick="setTab('fav')">즐겨찾기 (<span id="favCount">0</span>)</button>
-        <button type="button" class="tab-btn" data-tab="unseen" onclick="setTab('unseen')">안 본 글 (<span id="unseenCount">0</span>)</button>
+        <button type="button" class="tab-btn" data-tab="hidden" onclick="setTab('hidden')">숨김글 (<span id="hiddenCount">0</span>)</button>
         <button id="pinFavBtn" type="button" class="active" onclick="togglePinFav()">즐겨찾기 상단 고정</button>
         <span id="movieControls" class="movie-controls">
-          <button id="groupMovieBtn" type="button" class="active" onclick="toggleGroupMovies()">동일 영화 묶기</button>
-          <button id="uhdFirstBtn" type="button" class="active" onclick="toggleUhdFirst()">UHD 우선</button>
+          <span id="movieGroupControls" style="display:inline-flex; gap:6px;">
+            <button id="groupMovieBtn" type="button" class="active" onclick="toggleGroupMovies()">동일 영화 묶기</button>
+            <button id="uhdFirstBtn" type="button" class="active" onclick="toggleUhdFirst()">UHD 우선</button>
+          </span>
           <select id="movieFilterSel" aria-label="영화 화질 자막 필터" onchange="applyFilter()">
             <option value="all">전체 화질/자막</option>
             <option value="uhd">UHD만</option>
@@ -706,6 +886,14 @@ __META_REFRESH__
           <input id="q" type="search" placeholder="프로그램명 검색..." oninput="applyFilter()">
           <button type="button" class="clear-btn" title="검색어 지우기" onclick="clearSearch()">×</button>
         </div>
+        <form id="siteSearchForm" class="site-search-form" method="get" action="https://www.torrentzoa.com/board.php" target="_blank" rel="noopener noreferrer">
+          <div id="siteSearchHidden" style="display:none;"></div>
+          <div id="siteSearchSelects" class="site-search-selects"></div>
+          <div class="site-search-input-wrap">
+            <input id="siteSearchInput" name="sc" type="search" placeholder="티프리카 검색...">
+          </div>
+          <button id="siteSearchBtn" type="submit" class="site-search-btn">티프리카 검색</button>
+        </form>
         <select id="sortSel" aria-label="정렬" onchange="applyFilter()">
           <option value="latest">최신순</option>
           <option value="title">제목순</option>
@@ -724,6 +912,7 @@ __META_REFRESH__
 <script>
   var FAV_KEY = "tfreeca_fav_programs_v1";
   var VISIT_KEY = "tfreeca_visited_urls_v1";
+  var HIDDEN_KEY = "tfreeca_hidden_programs_v1";
   var THEME_KEY = "tfreeca_theme_v1";
   var currentBoard = "tent";
   var currentTab = "all";
@@ -748,6 +937,11 @@ __META_REFRESH__
 
   var favSet = loadSet(FAV_KEY);
   var visitSet = loadSet(VISIT_KEY);
+  var hiddenSet = loadSet(HIDDEN_KEY);
+
+  function isAnyMovieBoard(board) {
+    return board === "tmovie" || board === "tmovie_week" || board === "tmovie_month";
+  }
 
   function initTheme() {
     try {
@@ -768,15 +962,76 @@ __META_REFRESH__
     updateThemeLabel();
   }
 
+  var SITE_SEARCH_FORMS = __SEARCH_FORMS_JSON__;
+  var BOARD_SEARCH_LABELS = {
+    tent: "예능",
+    tdrama: "드라마",
+    tmovie: "영화",
+    tmovie_week: "영화",
+    tmovie_month: "영화"
+  };
+
+  function renderSiteSearchForm(board) {
+    var form = document.getElementById("siteSearchForm");
+    var hiddenWrap = document.getElementById("siteSearchHidden");
+    var selectWrap = document.getElementById("siteSearchSelects");
+    var inputEl = document.getElementById("siteSearchInput");
+    if (!form || !hiddenWrap || !selectWrap || !inputEl) return;
+
+    var cfg = SITE_SEARCH_FORMS[board] || SITE_SEARCH_FORMS.tent || {
+      action: "https://www.torrentzoa.com/board.php",
+      method: "get",
+      queryName: "sc",
+      hidden: [{ name: "mode", value: "lists" }, { name: "b_id", value: "tent" }],
+      selects: []
+    };
+
+    form.action = cfg.action || "https://www.torrentzoa.com/board.php";
+    form.method = cfg.method || "get";
+
+    hiddenWrap.innerHTML = "";
+    (cfg.hidden || []).forEach(function(item) {
+      var h = document.createElement("input");
+      h.type = "hidden";
+      h.name = item.name;
+      h.value = item.value;
+      hiddenWrap.appendChild(h);
+    });
+
+    selectWrap.innerHTML = "";
+    var selects = cfg.selects || [];
+    selectWrap.style.display = selects.length > 0 ? "inline-flex" : "none";
+    selects.forEach(function(selCfg) {
+      var sel = document.createElement("select");
+      sel.name = selCfg.name;
+      sel.setAttribute("aria-label", "티프리카 검색 조건");
+      (selCfg.options || []).forEach(function(optCfg) {
+        var opt = document.createElement("option");
+        opt.value = optCfg.value;
+        opt.textContent = optCfg.label;
+        if (optCfg.selected) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      selectWrap.appendChild(sel);
+    });
+
+    inputEl.name = cfg.queryName || "sc";
+    var label = BOARD_SEARCH_LABELS[board] || "티프리카";
+    inputEl.placeholder = label + " 티프리카 검색...";
+  }
+
   function setBoard(board) {
     currentBoard = board;
     document.querySelectorAll(".board-btn").forEach(function(b) {
       b.classList.toggle("active", b.dataset.board === board);
     });
     var mc = document.getElementById("movieControls");
-    if (mc) mc.style.display = board === "tmovie" ? "inline-flex" : "none";
+    if (mc) mc.style.display = isAnyMovieBoard(board) ? "inline-flex" : "none";
+    var mgc = document.getElementById("movieGroupControls");
+    if (mgc) mgc.style.display = board === "tmovie" ? "inline-flex" : "none";
     var qEl = document.getElementById("q");
-    if (qEl) qEl.placeholder = board === "tmovie" ? "영화 제목 검색..." : "프로그램명 검색...";
+    if (qEl) qEl.placeholder = isAnyMovieBoard(board) ? "영화 제목 검색..." : "프로그램명 검색...";
+    renderSiteSearchForm(board);
     applyFilter();
   }
 
@@ -821,17 +1076,21 @@ __META_REFRESH__
     var boardTotal = 0;
     var boardToday = 0;
     var favMatches = 0;
-    var unseenMatches = 0;
+    var hiddenMatches = 0;
     document.querySelectorAll("#list .row").forEach(function(el) {
       var prog = el.dataset.prog || "";
       var url = el.dataset.url || "";
       var isFav = favSet.has(prog);
       var isVisited = visitSet.has(url);
+      var isHidden = hiddenSet.has(prog);
       if (el.dataset.board === currentBoard) {
-        boardTotal += 1;
-        if (el.dataset.today === "1") boardToday += 1;
-        if (isFav) favMatches += 1;
-        if (!isVisited) unseenMatches += 1;
+        if (isHidden) {
+          hiddenMatches += 1;
+        } else {
+          boardTotal += 1;
+          if (el.dataset.today === "1") boardToday += 1;
+          if (isFav) favMatches += 1;
+        }
       }
       el.classList.toggle("is-fav", isFav);
       el.classList.toggle("is-visited", isVisited);
@@ -840,13 +1099,18 @@ __META_REFRESH__
         fb.textContent = isFav ? "★" : "☆";
         fb.classList.toggle("on", isFav);
       }
+      var hb = el.querySelector(".hide-btn");
+      if (hb) {
+        hb.textContent = isHidden ? "복원" : "숨김";
+        hb.classList.toggle("on", isHidden);
+      }
     });
     document.getElementById("boardTotal").textContent = boardTotal;
     document.getElementById("boardToday").textContent = boardToday;
     document.getElementById("allCount").textContent = boardTotal;
     document.getElementById("todayCount").textContent = boardToday;
     document.getElementById("favCount").textContent = favMatches;
-    document.getElementById("unseenCount").textContent = unseenMatches;
+    document.getElementById("hiddenCount").textContent = hiddenMatches;
   }
 
   function compareMovieRelease(a, b) {
@@ -889,13 +1153,19 @@ __META_REFRESH__
       if (el.dataset.board !== currentBoard) return;
       if (kw && el.dataset.title.indexOf(kw) === -1) return;
 
-      var isFav = favSet.has(el.dataset.prog);
-      var isVisited = visitSet.has(el.dataset.url);
-      if (currentTab === "today" && el.dataset.today !== "1") return;
-      if (currentTab === "fav" && !isFav) return;
-      if (currentTab === "unseen" && isVisited) return;
+      var prog = el.dataset.prog || "";
+      var isFav = favSet.has(prog);
+      var isHidden = hiddenSet.has(prog);
 
-      if (currentBoard === "tmovie") {
+      if (currentTab === "hidden") {
+        if (!isHidden) return;
+      } else {
+        if (isHidden) return;
+        if (currentTab === "today" && el.dataset.today !== "1") return;
+        if (currentTab === "fav" && !isFav) return;
+      }
+
+      if (isAnyMovieBoard(currentBoard)) {
         if (movieFilter === "uhd" && el.dataset.uhd !== "1") return;
         if (movieFilter === "kor" && el.dataset.kor !== "1") return;
         if (movieFilter === "ai" && el.dataset.ai !== "1") return;
@@ -967,7 +1237,7 @@ __META_REFRESH__
       });
     } else {
       matched.sort(function(a, b) {
-        if (pinFav) {
+        if (pinFav && currentTab !== "hidden") {
           var af = favSet.has(a.dataset.prog) ? 1 : 0;
           var bf = favSet.has(b.dataset.prog) ? 1 : 0;
           if (af !== bf) return bf - af;
@@ -1007,6 +1277,16 @@ __META_REFRESH__
       if (expandedGroups.has(gKey)) expandedGroups.delete(gKey);
       else expandedGroups.add(gKey);
       applyFilter();
+      return;
+    }
+    if (e.target.closest(".hide-btn")) {
+      var hProg = row.dataset.prog || "";
+      if (hProg) {
+        if (hiddenSet.has(hProg)) hiddenSet.delete(hProg);
+        else hiddenSet.add(hProg);
+        saveSet(HIDDEN_KEY, hiddenSet);
+        applyFilter();
+      }
       return;
     }
     if (e.target.closest(".fav-btn")) {
@@ -1081,7 +1361,19 @@ __META_REFRESH__
       });
   }
 
+  var siteFormEl = document.getElementById("siteSearchForm");
+  if (siteFormEl) {
+    siteFormEl.addEventListener("submit", function(e) {
+      var inp = document.getElementById("siteSearchInput");
+      if (inp && !inp.value.trim()) {
+        e.preventDefault();
+        inp.focus();
+      }
+    });
+  }
+
   initTheme();
+  renderSiteSearchForm(currentBoard);
   applyFilter();
 </script>
 </body>
@@ -1093,6 +1385,7 @@ __META_REFRESH__
         .replace("__META_REFRESH__", meta_refresh_tag)
         .replace("__UPDATED_AT__", escape(updated_at))
         .replace("__LIST_MARKUP__", list_markup)
+        .replace("__SEARCH_FORMS_JSON__", search_forms_json)
     )
 
 
@@ -1109,9 +1402,9 @@ def update_once(force=False):
             wait_sec = int(REFRESH_COOLDOWN - (now - _last_refresh_ts))
             return False, f"{wait_sec}초 후 다시 시도하세요."
 
-        items = collect_items()
+        items, search_forms = collect_items()
         updated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        html = build_html(items, updated_at)
+        html = build_html(items, updated_at, search_forms)
 
         os.makedirs(OUT_DIR, exist_ok=True)
         with open(output_file, "w", encoding="utf-8") as f:

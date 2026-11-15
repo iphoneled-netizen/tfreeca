@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 
 <title>예능 · 드라마 최신 목록</title>
 <style>
@@ -50,30 +53,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-  }
-  .board-switch {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-  .board-btn {
-    padding: 6px 14px;
-    font-size: 18px;
-    font-weight: 700;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--card);
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .board-btn.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #0f172a;
-  }
-  body.light .board-btn.active {
-    color: #ffffff;
   }
   .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .toolbar {
@@ -134,6 +113,31 @@
     border-color: var(--accent);
     color: var(--accent);
     font-weight: 600;
+  }
+  .board-switch {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .board-btn {
+    padding: 7px 16px;
+    font-size: 16px;
+    font-weight: 700;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .board-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0f172a;
+  }
+  body.light .board-btn.active {
+    color: #ffffff;
   }
   ul.list {
     list-style: none;
@@ -219,7 +223,7 @@
           <button type="button" class="board-btn active" data-board="tent" onclick="setBoard('tent')">예능</button>
           <button type="button" class="board-btn" data-board="tdrama" onclick="setBoard('tdrama')">드라마</button>
         </div>
-        <div class="meta">갱신: 2026-11-15 06:45:24 · 표시 <span id="count">0</span>건 / 전체 <span id="boardTotal">0</span>건 · 오늘 <span id="boardToday">0</span>건</div>
+        <div class="meta">갱신: 2026-11-15 06:55:13 · 표시 <span id="count">0</span>건 / 전체 <span id="boardTotal">0</span>건 · 오늘 <span id="boardToday">0</span>건</div>
       </div>
       <div class="top-right">
         <button id="themeBtn" type="button" onclick="toggleTheme()">라이트 모드</button>
@@ -604,7 +608,7 @@
   function refreshNow() {
     var btn = document.getElementById("refreshBtn");
     if (location.protocol === "file:" || location.hostname.endsWith("github.io")) {
-      location.reload();
+      location.replace(location.pathname + "?t=" + Date.now());
       return;
     }
     btn.disabled = true;

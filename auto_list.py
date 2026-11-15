@@ -312,6 +312,9 @@ def build_html(items, updated_at):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 __META_REFRESH__
 <title>예능 · 드라마 최신 목록</title>
 <style>
@@ -359,30 +362,6 @@ __META_REFRESH__
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-  }
-  .board-switch {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-  .board-btn {
-    padding: 6px 14px;
-    font-size: 18px;
-    font-weight: 700;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    background: var(--card);
-    color: var(--muted);
-    cursor: pointer;
-  }
-  .board-btn.active {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: #0f172a;
-  }
-  body.light .board-btn.active {
-    color: #ffffff;
   }
   .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .toolbar {
@@ -443,6 +422,31 @@ __META_REFRESH__
     border-color: var(--accent);
     color: var(--accent);
     font-weight: 600;
+  }
+  .board-switch {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .board-btn {
+    padding: 7px 16px;
+    font-size: 16px;
+    font-weight: 700;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    cursor: pointer;
+  }
+  .board-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0f172a;
+  }
+  body.light .board-btn.active {
+    color: #ffffff;
   }
   ul.list {
     list-style: none;
@@ -774,7 +778,7 @@ __META_REFRESH__
   function refreshNow() {
     var btn = document.getElementById("refreshBtn");
     if (location.protocol === "file:" || location.hostname.endsWith("github.io")) {
-      location.reload();
+      location.replace(location.pathname + "?t=" + Date.now());
       return;
     }
     btn.disabled = true;

@@ -24,6 +24,7 @@ BASE = "https://www.torrentzoa.com/"
 BOARDS = (
     ("tent", "예능"),
     ("tdrama", "드라마"),
+    ("tmovie", "영화"),
 )
 LIST_URL = BASE + "board.php?mode=lists&b_id={board_id}&page={page}"
 
@@ -62,11 +63,49 @@ RELEASE_TAIL = re.compile(
     re.IGNORECASE,
 )
 
+MOVIE_UHD_RE = re.compile(r"(?:\bUHD\b|\b4K\b|\b2160p\b)", re.IGNORECASE)
+MOVIE_AI_SUB_RE = re.compile(
+    r"(?:AI\s*[-_.]?\s*(?:번역\s*)?자막|AI\s*번역|AI\s*한글\s*자막|기계\s*번역)",
+    re.IGNORECASE,
+)
+MOVIE_KOR_SUB_RE = re.compile(
+    r"(?:한글\s*자막|자체\s*한글|자체\s*자막|정식\s*자막|\bKOR(?:EAN)?\s*SUB\b|(?:\[|\()(?:한글|자막|KOR)(?:\]|\)))",
+    re.IGNORECASE,
+)
+MOVIE_TAG_INLINE = re.compile(
+    r"[\[(]\s*(?:한글\s*자막|AI\s*[-_.]?\s*(?:번역\s*)?자막|AI\s*번역|AI\s*한글\s*자막|기계\s*번역|자체\s*자막|정식\s*자막|무자막|영문\s*자막|UHD|4K|HDR(?:10)?|더빙|개봉예정|최신)\s*[\])]",
+    re.IGNORECASE,
+)
+MOVIE_RELEASE_TAIL = re.compile(
+    r"[.\s_\-]*(?:\d{3,4}p|\bUHD\b|\b4K\b|\bHDR(?:10)?\b|\bDV\b|(?:x|h)\.?26[45]|WEB[-_. ]?DL|WEBRip|BluRay|BDRip|HDRip|FHDRip|HEVC|AAC|DDP|Atmos|한글\s*자막|AI\s*[-_.]?\s*(?:번역\s*)?자막|AI\s*번역|자체\s*자막|정식\s*자막).*$",
+    re.IGNORECASE,
+)
 
-def clean_title(title):
+
+def parse_movie_meta(raw):
+    uhd = bool(MOVIE_UHD_RE.search(raw))
+    ai_sub = bool(MOVIE_AI_SUB_RE.search(raw))
+    kor_sub = bool(MOVIE_KOR_SUB_RE.search(raw))
+    quality = 0
+    if uhd:
+        quality = 2160
+    elif re.search(r"\b1440p\b", raw, re.IGNORECASE):
+        quality = 1440
+    elif re.search(r"\b1080p\b", raw, re.IGNORECASE):
+        quality = 1080
+    elif re.search(r"\b720p\b", raw, re.IGNORECASE):
+        quality = 720
+    return uhd, kor_sub, ai_sub, quality
+
+
+def clean_title(title, board_id="tent"):
     t = BRACKET_PREFIX.sub("", (title or "").strip())
     t = REMOVE_ONAIR_BEST.sub("", t)
-    t = RELEASE_TAIL.sub("", t)
+    if board_id == "tmovie":
+        t = MOVIE_TAG_INLINE.sub(" ", t)
+        t = MOVIE_RELEASE_TAIL.sub("", t)
+    else:
+        t = RELEASE_TAIL.sub("", t)
     t = re.sub(r"\s{2,}", " ", t).strip(" ._-")
     return t
 
@@ -199,8 +238,13 @@ def parse_page(soup, board_id="tent"):
         if not raw or raw.startswith("[이용안내]"):
             continue
 
-        title = clean_title(raw)
-        if len(title) < 3:
+        if board_id == "tmovie":
+            uhd, kor_sub, ai_sub, quality = parse_movie_meta(raw)
+        else:
+            uhd, kor_sub, ai_sub, quality = False, False, False, 0
+
+        title = clean_title(raw, board_id)
+        if len(title) < 2:
             continue
 
         row = a.find_parent("tr") or a.find_parent("li") or a.parent
@@ -224,6 +268,10 @@ def parse_page(soup, board_id="tent"):
             "url": abs_url(href),
             "date": date_txt,
             "today": is_today,
+            "uhd": uhd,
+            "kor_sub": kor_sub,
+            "ai_sub": ai_sub,
+            "quality": quality,
         })
     return items
 
@@ -278,6 +326,26 @@ def extract_program_key(title):
     return (base or title).lower()
 
 
+def extract_movie_key(title):
+    t = (title or "").strip()
+    t = re.sub(r"\([^)]*(?:19|20)\d{2}[^)]*\)", " ", t)
+    t = re.sub(r"\[[^\]]*\]", " ", t)
+    t = re.sub(r"(?<=.)[\s._-]+(?:19|20)\d{2}\b.*$", "", t)
+    last_ko = -1
+    for idx, ch in enumerate(t):
+        if "가" <= ch <= "힣":
+            last_ko = idx
+    if last_ko >= 0:
+        head = t[: last_ko + 1]
+        tail = t[last_ko + 1 :]
+        m = re.match(r"^\s*(\d{1,2})(?=\s|[._-]|$)", tail)
+        if m:
+            head = head + m.group(1)
+        t = head
+    key = re.sub(r"[^0-9a-zA-Z가-힣]+", "", t).lower()
+    return key or re.sub(r"[^0-9a-zA-Z가-힣]+", "", (title or "")).lower()
+
+
 def build_html(items, updated_at):
     meta_refresh_tag = (
         f'<meta http-equiv="refresh" content="{META_REFRESH}">'
@@ -288,18 +356,39 @@ def build_html(items, updated_at):
     for idx, item in enumerate(items, 1):
         board_id = item.get("board", "tent")
         today_attr = "1" if item["today"] else "0"
-        prog_key = extract_program_key(item["title"])
+        prog_key = (
+            extract_movie_key(item["title"])
+            if board_id == "tmovie"
+            else extract_program_key(item["title"])
+        )
+        uhd_attr = "1" if item.get("uhd") else "0"
+        kor_attr = "1" if item.get("kor_sub") else "0"
+        ai_attr = "1" if item.get("ai_sub") else "0"
+        quality_val = int(item.get("quality") or 0)
+
+        tags = []
+        if item.get("uhd"):
+            tags.append('<span class="tag tag-uhd">UHD</span>')
+        if item.get("kor_sub"):
+            tags.append('<span class="tag tag-kor">한글자막</span>')
+        if item.get("ai_sub"):
+            tags.append('<span class="tag tag-ai">AI자막</span>')
+        tags_markup = "".join(tags)
+
         date_cls = "date today" if item["today"] else "date"
         today_mark = '<span class="today-mark">오늘</span>' if item["today"] else ""
         rows_html.append(
             f'<li class="row" data-index="{idx}" data-board="{escape(board_id)}" '
             f'data-today="{today_attr}" data-title="{escape(item["title"].lower())}" '
-            f'data-prog="{escape(prog_key)}" data-url="{escape(item["url"])}">'
-            f'<button type="button" class="fav-btn" title="관심 프로그램 즐겨찾기" aria-label="즐겨찾기">☆</button>'
+            f'data-prog="{escape(prog_key)}" data-url="{escape(item["url"])}" '
+            f'data-uhd="{uhd_attr}" data-kor="{kor_attr}" data-ai="{ai_attr}" data-quality="{quality_val}">'
+            f'<button type="button" class="fav-btn" title="관심 항목 즐겨찾기" aria-label="즐겨찾기">☆</button>'
             f'<span class="num">{idx}</span>'
             f'<a class="title" href="{escape(item["url"])}" target="_blank" rel="noopener noreferrer">'
             f'{escape(item["title"])}</a>'
+            f'{tags_markup}'
             f'{today_mark}'
+            f'<button type="button" class="ver-btn" style="display:none" title="동일 영화 다른 버전 보기"></button>'
             f'<span class="{date_cls}">{escape(item["date"])}</span>'
             f'<button type="button" class="copy-btn" title="링크 복사">복사</button>'
             f'</li>'
@@ -316,7 +405,7 @@ def build_html(items, updated_at):
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
 __META_REFRESH__
-<title>예능 · 드라마 최신 목록</title>
+<title>예능 · 드라마 · 영화 최신 목록</title>
 <style>
   :root {
     --bg: #0f172a;
@@ -448,6 +537,12 @@ __META_REFRESH__
   body.light .board-btn.active {
     color: #ffffff;
   }
+  .movie-controls {
+    display: none;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
   ul.list {
     list-style: none;
     margin: 0;
@@ -468,6 +563,17 @@ __META_REFRESH__
   li.row:hover { background: var(--card-hover); }
   li.row.is-fav { background: rgba(251, 191, 36, 0.06); }
   li.row.is-visited .title { color: var(--muted); }
+  li.row.is-sub-row {
+    padding-left: 44px;
+    background: rgba(15, 23, 42, 0.25);
+  }
+  body.light li.row.is-sub-row {
+    background: #f8fafc;
+  }
+  li.row.is-sub-row .num {
+    color: var(--muted);
+    font-size: 11px;
+  }
   .fav-btn {
     padding: 2px 6px;
     border: none;
@@ -495,6 +601,41 @@ __META_REFRESH__
     word-break: keep-all;
   }
   .title:hover { color: var(--accent); text-decoration: underline; }
+  .tag {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    line-height: 1.3;
+  }
+  .tag-uhd {
+    color: #38bdf8;
+    border-color: rgba(56, 189, 248, 0.35);
+    background: rgba(56, 189, 248, 0.12);
+  }
+  .tag-kor {
+    color: #34d399;
+    border-color: rgba(52, 211, 153, 0.35);
+    background: rgba(52, 211, 153, 0.12);
+  }
+  .tag-ai {
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.35);
+    background: rgba(251, 191, 36, 0.12);
+  }
+  body.light .tag-uhd { color: #0284c7; border-color: #bae6fd; background: #e0f2fe; }
+  body.light .tag-kor { color: #059669; border-color: #a7f3d0; background: #d1fae5; }
+  body.light .tag-ai { color: #b45309; border-color: #fde68a; background: #fef3c7; }
+  .ver-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent);
+    border-color: var(--line);
+    flex-shrink: 0;
+  }
   .today-mark {
     flex-shrink: 0;
     font-size: 11px;
@@ -531,6 +672,7 @@ __META_REFRESH__
         <div class="board-switch" role="tablist" aria-label="게시판 선택">
           <button type="button" class="board-btn active" data-board="tent" onclick="setBoard('tent')">예능</button>
           <button type="button" class="board-btn" data-board="tdrama" onclick="setBoard('tdrama')">드라마</button>
+          <button type="button" class="board-btn" data-board="tmovie" onclick="setBoard('tmovie')">영화</button>
         </div>
         <div class="meta">갱신: __UPDATED_AT__ · 표시 <span id="count">0</span>건 / 전체 <span id="boardTotal">0</span>건 · 오늘 <span id="boardToday">0</span>건</div>
       </div>
@@ -548,6 +690,16 @@ __META_REFRESH__
         <button type="button" class="tab-btn" data-tab="fav" onclick="setTab('fav')">즐겨찾기 (<span id="favCount">0</span>)</button>
         <button type="button" class="tab-btn" data-tab="unseen" onclick="setTab('unseen')">안 본 글 (<span id="unseenCount">0</span>)</button>
         <button id="pinFavBtn" type="button" class="active" onclick="togglePinFav()">즐겨찾기 상단 고정</button>
+        <span id="movieControls" class="movie-controls">
+          <button id="groupMovieBtn" type="button" class="active" onclick="toggleGroupMovies()">동일 영화 묶기</button>
+          <button id="uhdFirstBtn" type="button" class="active" onclick="toggleUhdFirst()">UHD 우선</button>
+          <select id="movieFilterSel" aria-label="영화 화질 자막 필터" onchange="applyFilter()">
+            <option value="all">전체 화질/자막</option>
+            <option value="uhd">UHD만</option>
+            <option value="kor">한글자막</option>
+            <option value="ai">AI자막</option>
+          </select>
+        </span>
       </div>
       <div class="controls">
         <div class="search-wrap">
@@ -576,6 +728,9 @@ __META_REFRESH__
   var currentBoard = "tent";
   var currentTab = "all";
   var pinFav = true;
+  var groupMovies = true;
+  var uhdFirst = true;
+  var expandedGroups = new Set();
 
   function loadSet(key) {
     try {
@@ -618,6 +773,10 @@ __META_REFRESH__
     document.querySelectorAll(".board-btn").forEach(function(b) {
       b.classList.toggle("active", b.dataset.board === board);
     });
+    var mc = document.getElementById("movieControls");
+    if (mc) mc.style.display = board === "tmovie" ? "inline-flex" : "none";
+    var qEl = document.getElementById("q");
+    if (qEl) qEl.placeholder = board === "tmovie" ? "영화 제목 검색..." : "프로그램명 검색...";
     applyFilter();
   }
 
@@ -632,6 +791,18 @@ __META_REFRESH__
   function togglePinFav() {
     pinFav = !pinFav;
     document.getElementById("pinFavBtn").classList.toggle("active", pinFav);
+    applyFilter();
+  }
+
+  function toggleGroupMovies() {
+    groupMovies = !groupMovies;
+    document.getElementById("groupMovieBtn").classList.toggle("active", groupMovies);
+    applyFilter();
+  }
+
+  function toggleUhdFirst() {
+    uhdFirst = !uhdFirst;
+    document.getElementById("uhdFirstBtn").classList.toggle("active", uhdFirst);
     applyFilter();
   }
 
@@ -678,46 +849,149 @@ __META_REFRESH__
     document.getElementById("unseenCount").textContent = unseenMatches;
   }
 
+  function compareMovieRelease(a, b) {
+    var au = a.dataset.uhd === "1" ? 1 : 0;
+    var bu = b.dataset.uhd === "1" ? 1 : 0;
+    if (au !== bu) return bu - au;
+    var aq = Number(a.dataset.quality || 0);
+    var bq = Number(b.dataset.quality || 0);
+    if (aq !== bq) return bq - aq;
+    var ak = a.dataset.kor === "1" ? 1 : 0;
+    var bk = b.dataset.kor === "1" ? 1 : 0;
+    if (ak !== bk) return bk - ak;
+    var aa = a.dataset.ai === "1" ? 1 : 0;
+    var ba = b.dataset.ai === "1" ? 1 : 0;
+    if (aa !== ba) return ba - aa;
+    return Number(a.dataset.index) - Number(b.dataset.index);
+  }
+
   function applyFilter() {
     syncRowStates();
     var kw = document.getElementById("q").value.trim().toLowerCase();
     var sortMode = document.getElementById("sortSel").value;
+    var movieFilter = document.getElementById("movieFilterSel")
+      ? document.getElementById("movieFilterSel").value
+      : "all";
     var listEl = document.getElementById("list");
     var emptyEl = document.getElementById("emptyNotice");
     var rows = Array.from(listEl.querySelectorAll(".row"));
 
-    rows.sort(function(a, b) {
-      if (pinFav) {
-        var af = favSet.has(a.dataset.prog) ? 1 : 0;
-        var bf = favSet.has(b.dataset.prog) ? 1 : 0;
-        if (af !== bf) return bf - af;
+    var matched = [];
+    rows.forEach(function(el) {
+      el.classList.remove("is-sub-row");
+      el.style.display = "none";
+      var vb = el.querySelector(".ver-btn");
+      if (vb) {
+        vb.style.display = "none";
+        vb.textContent = "";
       }
-      if (sortMode === "title") {
-        return a.dataset.title.localeCompare(b.dataset.title, "ko");
+
+      if (el.dataset.board !== currentBoard) return;
+      if (kw && el.dataset.title.indexOf(kw) === -1) return;
+
+      var isFav = favSet.has(el.dataset.prog);
+      var isVisited = visitSet.has(el.dataset.url);
+      if (currentTab === "today" && el.dataset.today !== "1") return;
+      if (currentTab === "fav" && !isFav) return;
+      if (currentTab === "unseen" && isVisited) return;
+
+      if (currentBoard === "tmovie") {
+        if (movieFilter === "uhd" && el.dataset.uhd !== "1") return;
+        if (movieFilter === "kor" && el.dataset.kor !== "1") return;
+        if (movieFilter === "ai" && el.dataset.ai !== "1") return;
       }
-      return Number(a.dataset.index) - Number(b.dataset.index);
+      matched.push(el);
     });
 
     var visible = 0;
-    rows.forEach(function(el) {
-      listEl.appendChild(el);
-      var matchBoard = el.dataset.board === currentBoard;
-      var matchKw = !kw || el.dataset.title.indexOf(kw) !== -1;
-      var isFav = favSet.has(el.dataset.prog);
-      var isVisited = visitSet.has(el.dataset.url);
-      var matchTab = true;
-      if (currentTab === "today") matchTab = el.dataset.today === "1";
-      else if (currentTab === "fav") matchTab = isFav;
-      else if (currentTab === "unseen") matchTab = !isVisited;
 
-      var show = matchBoard && matchKw && matchTab;
-      el.style.display = show ? "flex" : "none";
-      if (show) {
+    if (currentBoard === "tmovie" && groupMovies) {
+      var groupMap = Object.create(null);
+      var groupKeys = [];
+      matched.forEach(function(el) {
+        var key = el.dataset.prog || ("idx_" + el.dataset.index);
+        if (!groupMap[key]) {
+          groupMap[key] = [];
+          groupKeys.push(key);
+        }
+        groupMap[key].push(el);
+      });
+
+      var groups = groupKeys.map(function(key) {
+        var arr = groupMap[key];
+        arr.sort(compareMovieRelease);
+        return { key: key, primary: arr[0], subs: arr.slice(1) };
+      });
+
+      groups.sort(function(ga, gb) {
+        var a = ga.primary;
+        var b = gb.primary;
+        if (pinFav) {
+          var af = favSet.has(a.dataset.prog) ? 1 : 0;
+          var bf = favSet.has(b.dataset.prog) ? 1 : 0;
+          if (af !== bf) return bf - af;
+        }
+        if (uhdFirst) {
+          var au = a.dataset.uhd === "1" ? 1 : 0;
+          var bu = b.dataset.uhd === "1" ? 1 : 0;
+          if (au !== bu) return bu - au;
+        }
+        if (sortMode === "title") {
+          return a.dataset.title.localeCompare(b.dataset.title, "ko");
+        }
+        return Number(a.dataset.index) - Number(b.dataset.index);
+      });
+
+      groups.forEach(function(g) {
         visible += 1;
+        var p = g.primary;
+        p.style.display = "flex";
+        var numEl = p.querySelector(".num");
+        if (numEl) numEl.textContent = String(visible);
+        var vb = p.querySelector(".ver-btn");
+        if (vb && g.subs.length > 0) {
+          var isOpen = expandedGroups.has(g.key);
+          vb.style.display = "inline-block";
+          vb.textContent = isOpen ? "접기" : ("+" + g.subs.length + "버전");
+        }
+        listEl.appendChild(p);
+        if (g.subs.length > 0 && expandedGroups.has(g.key)) {
+          g.subs.forEach(function(sub) {
+            sub.classList.add("is-sub-row");
+            sub.style.display = "flex";
+            var subNum = sub.querySelector(".num");
+            if (subNum) subNum.textContent = "└";
+            listEl.appendChild(sub);
+          });
+        }
+      });
+    } else {
+      matched.sort(function(a, b) {
+        if (pinFav) {
+          var af = favSet.has(a.dataset.prog) ? 1 : 0;
+          var bf = favSet.has(b.dataset.prog) ? 1 : 0;
+          if (af !== bf) return bf - af;
+        }
+        if (currentBoard === "tmovie" && uhdFirst) {
+          var au = a.dataset.uhd === "1" ? 1 : 0;
+          var bu = b.dataset.uhd === "1" ? 1 : 0;
+          if (au !== bu) return bu - au;
+        }
+        if (sortMode === "title") {
+          return a.dataset.title.localeCompare(b.dataset.title, "ko");
+        }
+        return Number(a.dataset.index) - Number(b.dataset.index);
+      });
+
+      matched.forEach(function(el) {
+        visible += 1;
+        el.style.display = "flex";
         var numEl = el.querySelector(".num");
         if (numEl) numEl.textContent = String(visible);
-      }
-    });
+        listEl.appendChild(el);
+      });
+    }
+
     if (emptyEl) {
       listEl.appendChild(emptyEl);
       emptyEl.style.display = visible === 0 ? "block" : "none";
@@ -728,6 +1002,13 @@ __META_REFRESH__
   document.getElementById("list").addEventListener("click", function(e) {
     var row = e.target.closest(".row");
     if (!row) return;
+    if (e.target.closest(".ver-btn")) {
+      var gKey = row.dataset.prog || "";
+      if (expandedGroups.has(gKey)) expandedGroups.delete(gKey);
+      else expandedGroups.add(gKey);
+      applyFilter();
+      return;
+    }
     if (e.target.closest(".fav-btn")) {
       var prog = row.dataset.prog || "";
       if (favSet.has(prog)) favSet.delete(prog);

@@ -21,9 +21,13 @@ from selenium.webdriver.support import expected_conditions as EC
 
 # ===================== 설정 =====================
 BASE = "https://www.torrentzoa.com/"
-LIST_URL = BASE + "board.php?mode=lists&b_id=tent&page={page}"
+BOARDS = (
+    ("tent", "예능"),
+    ("tdrama", "드라마"),
+)
+LIST_URL = BASE + "board.php?mode=lists&b_id={board_id}&page={page}"
 
-PAGES = (1, 2)                 # 수집할 페이지
+PAGES = (1, 2)                 # 게시판별 수집할 페이지
 HEADLESS = True                # False면 크롬 창을 띄우고 최소화
 INTERVAL = 12 * 60 * 60        # 갱신 주기: 12시간
 PAGE_LOAD_TIMEOUT = 12         # 페이지 로딩 최대 대기(초)
@@ -180,11 +184,12 @@ def is_excluded_widget(tag):
     return bool(SKIP_WIDGET_RE.search(attr_chain(tag)))
 
 
-def parse_page(soup):
+def parse_page(soup, board_id="tent"):
     items = []
+    board_token = f"b_id={board_id}"
     for a in soup.select("a[href*='mode=view']"):
         href = a.get("href") or ""
-        if "b_id=tent" not in href:
+        if board_token not in href:
             continue
 
         if is_excluded_widget(a):
@@ -214,6 +219,7 @@ def parse_page(soup):
                 break
 
         items.append({
+            "board": board_id,
             "title": title,
             "url": abs_url(href),
             "date": date_txt,
@@ -227,37 +233,41 @@ def collect_items():
     driver = make_driver()
     all_items = []
     seen_urls = set()
+    counts = {board_id: 0 for board_id, _ in BOARDS}
     try:
-        for idx, page in enumerate(PAGES):
-            url = LIST_URL.format(page=page)
-            print(f"[수집 중] {page}페이지 로딩...", flush=True)
-            try:
-                driver.get(url)
-            except TimeoutException:
+        for b_idx, (board_id, board_name) in enumerate(BOARDS):
+            for p_idx, page in enumerate(PAGES):
+                url = LIST_URL.format(board_id=board_id, page=page)
+                print(f"[수집 중] [{board_name}] {page}페이지 로딩...", flush=True)
                 try:
-                    driver.execute_script("window.stop();")
-                except Exception:
-                    pass
-            try:
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='mode=view']"))
-                )
-            except TimeoutException:
-                print(f"[경고] {page}페이지 목록 대기 시간 초과, 현재 DOM으로 파싱합니다.", flush=True)
+                    driver.get(url)
+                except TimeoutException:
+                    try:
+                        driver.execute_script("window.stop();")
+                    except Exception:
+                        pass
+                try:
+                    WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='mode=view']"))
+                    )
+                except TimeoutException:
+                    print(f"[경고] [{board_name}] {page}페이지 목록 대기 시간 초과, 현재 DOM으로 파싱합니다.", flush=True)
 
-            html = driver.page_source
-            if idx == 0 and debug_file and not is_github_action_mode():
-                os.makedirs(OUT_DIR, exist_ok=True)
-                with open(debug_file, "w", encoding="utf-8") as f:
-                    f.write(html)
-            soup = BeautifulSoup(html, "html.parser")
-            for item in parse_page(soup):
-                if item["url"] not in seen_urls:
-                    seen_urls.add(item["url"])
-                    all_items.append(item)
+                html = driver.page_source
+                if b_idx == 0 and p_idx == 0 and debug_file and not is_github_action_mode():
+                    os.makedirs(OUT_DIR, exist_ok=True)
+                    with open(debug_file, "w", encoding="utf-8") as f:
+                        f.write(html)
+                soup = BeautifulSoup(html, "html.parser")
+                for item in parse_page(soup, board_id):
+                    if item["url"] not in seen_urls:
+                        seen_urls.add(item["url"])
+                        all_items.append(item)
+                        counts[board_id] += 1
     finally:
         driver.quit()
-    print(f"[수집 완료] {len(all_items)}건 ({time.time() - started_at:.1f}초)", flush=True)
+    summary = " · ".join(f"{name} {counts[bid]}" for bid, name in BOARDS)
+    print(f"[수집 완료] 총 {len(all_items)}건 ({summary}, {time.time() - started_at:.1f}초)", flush=True)
     return all_items
 
 
@@ -274,17 +284,17 @@ def build_html(items, updated_at):
         if META_REFRESH > 0 else ""
     )
 
-    today_count = sum(1 for item in items if item["today"])
     rows_html = []
     for idx, item in enumerate(items, 1):
+        board_id = item.get("board", "tent")
         today_attr = "1" if item["today"] else "0"
         prog_key = extract_program_key(item["title"])
         date_cls = "date today" if item["today"] else "date"
         today_mark = '<span class="today-mark">오늘</span>' if item["today"] else ""
         rows_html.append(
-            f'<li class="row" data-index="{idx}" data-today="{today_attr}" '
-            f'data-title="{escape(item["title"].lower())}" data-prog="{escape(prog_key)}" '
-            f'data-url="{escape(item["url"])}">'
+            f'<li class="row" data-index="{idx}" data-board="{escape(board_id)}" '
+            f'data-today="{today_attr}" data-title="{escape(item["title"].lower())}" '
+            f'data-prog="{escape(prog_key)}" data-url="{escape(item["url"])}">'
             f'<button type="button" class="fav-btn" title="관심 프로그램 즐겨찾기" aria-label="즐겨찾기">☆</button>'
             f'<span class="num">{idx}</span>'
             f'<a class="title" href="{escape(item["url"])}" target="_blank" rel="noopener noreferrer">'
@@ -295,7 +305,7 @@ def build_html(items, updated_at):
             f'</li>'
         )
 
-    list_markup = "\n".join(rows_html) if rows_html else '<li class="empty">수집된 목록이 없습니다.</li>'
+    list_markup = "\n".join(rows_html)
 
     template = r"""<!doctype html>
 <html lang="ko">
@@ -303,7 +313,7 @@ def build_html(items, updated_at):
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 __META_REFRESH__
-<title>예능 최신 목록</title>
+<title>예능 · 드라마 최신 목록</title>
 <style>
   :root {
     --bg: #0f172a;
@@ -350,7 +360,30 @@ __META_REFRESH__
     align-items: center;
     gap: 8px;
   }
-  h1 { margin: 0; font-size: 20px; font-weight: 700; }
+  .board-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .board-btn {
+    padding: 6px 14px;
+    font-size: 18px;
+    font-weight: 700;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .board-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0f172a;
+  }
+  body.light .board-btn.active {
+    color: #ffffff;
+  }
   .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .toolbar {
     display: flex;
@@ -491,8 +524,11 @@ __META_REFRESH__
   <div class="wrap">
     <div class="top">
       <div>
-        <h1>예능 최신 목록</h1>
-        <div class="meta">갱신: __UPDATED_AT__ · 표시 <span id="count">__TOTAL_COUNT__</span>건 / 전체 __TOTAL_COUNT__건 · 오늘 __TODAY_COUNT__건</div>
+        <div class="board-switch" role="tablist" aria-label="게시판 선택">
+          <button type="button" class="board-btn active" data-board="tent" onclick="setBoard('tent')">예능</button>
+          <button type="button" class="board-btn" data-board="tdrama" onclick="setBoard('tdrama')">드라마</button>
+        </div>
+        <div class="meta">갱신: __UPDATED_AT__ · 표시 <span id="count">0</span>건 / 전체 <span id="boardTotal">0</span>건 · 오늘 <span id="boardToday">0</span>건</div>
       </div>
       <div class="top-right">
         <button id="themeBtn" type="button" onclick="toggleTheme()">라이트 모드</button>
@@ -503,8 +539,8 @@ __META_REFRESH__
 
     <div class="toolbar">
       <div class="tabs">
-        <button type="button" class="tab-btn active" data-tab="all" onclick="setTab('all')">전체 (__TOTAL_COUNT__)</button>
-        <button type="button" class="tab-btn" data-tab="today" onclick="setTab('today')">오늘 (__TODAY_COUNT__)</button>
+        <button type="button" class="tab-btn active" data-tab="all" onclick="setTab('all')">전체 (<span id="allCount">0</span>)</button>
+        <button type="button" class="tab-btn" data-tab="today" onclick="setTab('today')">오늘 (<span id="todayCount">0</span>)</button>
         <button type="button" class="tab-btn" data-tab="fav" onclick="setTab('fav')">즐겨찾기 (<span id="favCount">0</span>)</button>
         <button type="button" class="tab-btn" data-tab="unseen" onclick="setTab('unseen')">안 본 글 (<span id="unseenCount">0</span>)</button>
         <button id="pinFavBtn" type="button" class="active" onclick="togglePinFav()">즐겨찾기 상단 고정</button>
@@ -523,6 +559,7 @@ __META_REFRESH__
 
     <ul class="list" id="list">
       __LIST_MARKUP__
+      <li id="emptyNotice" class="empty" style="display:none;">표시할 항목이 없습니다.</li>
     </ul>
   </div>
 
@@ -532,6 +569,7 @@ __META_REFRESH__
   var FAV_KEY = "tfreeca_fav_programs_v1";
   var VISIT_KEY = "tfreeca_visited_urls_v1";
   var THEME_KEY = "tfreeca_theme_v1";
+  var currentBoard = "tent";
   var currentTab = "all";
   var pinFav = true;
 
@@ -571,6 +609,14 @@ __META_REFRESH__
     updateThemeLabel();
   }
 
+  function setBoard(board) {
+    currentBoard = board;
+    document.querySelectorAll(".board-btn").forEach(function(b) {
+      b.classList.toggle("active", b.dataset.board === board);
+    });
+    applyFilter();
+  }
+
   function setTab(tab) {
     currentTab = tab;
     document.querySelectorAll(".tab-btn").forEach(function(b) {
@@ -597,6 +643,8 @@ __META_REFRESH__
   }
 
   function syncRowStates() {
+    var boardTotal = 0;
+    var boardToday = 0;
     var favMatches = 0;
     var unseenMatches = 0;
     document.querySelectorAll("#list .row").forEach(function(el) {
@@ -604,8 +652,12 @@ __META_REFRESH__
       var url = el.dataset.url || "";
       var isFav = favSet.has(prog);
       var isVisited = visitSet.has(url);
-      if (isFav) favMatches += 1;
-      if (!isVisited) unseenMatches += 1;
+      if (el.dataset.board === currentBoard) {
+        boardTotal += 1;
+        if (el.dataset.today === "1") boardToday += 1;
+        if (isFav) favMatches += 1;
+        if (!isVisited) unseenMatches += 1;
+      }
       el.classList.toggle("is-fav", isFav);
       el.classList.toggle("is-visited", isVisited);
       var fb = el.querySelector(".fav-btn");
@@ -614,6 +666,10 @@ __META_REFRESH__
         fb.classList.toggle("on", isFav);
       }
     });
+    document.getElementById("boardTotal").textContent = boardTotal;
+    document.getElementById("boardToday").textContent = boardToday;
+    document.getElementById("allCount").textContent = boardTotal;
+    document.getElementById("todayCount").textContent = boardToday;
     document.getElementById("favCount").textContent = favMatches;
     document.getElementById("unseenCount").textContent = unseenMatches;
   }
@@ -623,6 +679,7 @@ __META_REFRESH__
     var kw = document.getElementById("q").value.trim().toLowerCase();
     var sortMode = document.getElementById("sortSel").value;
     var listEl = document.getElementById("list");
+    var emptyEl = document.getElementById("emptyNotice");
     var rows = Array.from(listEl.querySelectorAll(".row"));
 
     rows.sort(function(a, b) {
@@ -640,6 +697,7 @@ __META_REFRESH__
     var visible = 0;
     rows.forEach(function(el) {
       listEl.appendChild(el);
+      var matchBoard = el.dataset.board === currentBoard;
       var matchKw = !kw || el.dataset.title.indexOf(kw) !== -1;
       var isFav = favSet.has(el.dataset.prog);
       var isVisited = visitSet.has(el.dataset.url);
@@ -648,7 +706,7 @@ __META_REFRESH__
       else if (currentTab === "fav") matchTab = isFav;
       else if (currentTab === "unseen") matchTab = !isVisited;
 
-      var show = matchKw && matchTab;
+      var show = matchBoard && matchKw && matchTab;
       el.style.display = show ? "flex" : "none";
       if (show) {
         visible += 1;
@@ -656,6 +714,10 @@ __META_REFRESH__
         if (numEl) numEl.textContent = String(visible);
       }
     });
+    if (emptyEl) {
+      listEl.appendChild(emptyEl);
+      emptyEl.style.display = visible === 0 ? "block" : "none";
+    }
     document.getElementById("count").textContent = visible;
   }
 
@@ -745,8 +807,6 @@ __META_REFRESH__
         template
         .replace("__META_REFRESH__", meta_refresh_tag)
         .replace("__UPDATED_AT__", escape(updated_at))
-        .replace("__TOTAL_COUNT__", str(len(items)))
-        .replace("__TODAY_COUNT__", str(today_count))
         .replace("__LIST_MARKUP__", list_markup)
     )
 

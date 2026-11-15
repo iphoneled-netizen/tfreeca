@@ -1,212 +1,233 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:,">
 
-<title>예능 리스트</title>
+<title>예능 최신 목록</title>
 <style>
-  body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
-         margin: 20px; background: #f5f6f8; color: #333; }
-  h2 { border-bottom: 2px solid #007bff; padding-bottom: 10px; color: #007bff;
-       display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-  .title { font-weight: 700; }
-  .meta { font-size: .5em; color: #777; font-weight: normal; text-align: right; line-height: 1.9; }
-  .controls { display: inline-flex; gap: 6px; }
-  .btn { font-size: .9em; background: #e2e8f0; border: none; padding: 5px 10px;
-         border-radius: 4px; cursor: pointer; color: #475569; white-space: nowrap; }
-  .btn:hover { background: #cbd5e1; }
-  ul { list-style: none; padding: 0; margin: 0; }
-
-  li { background: #fff; margin-bottom: 8px; padding: 12px 15px; border-radius: 6px;
-       box-shadow: 0 1px 3px rgba(0,0,0,.08); display: flex; justify-content: space-between;
-       align-items: center; gap: 15px; }
-  li:hover { background: #f1f1f1; }
-  li.best { background: #e7edf8; box-shadow: 0 1px 4px rgba(0,0,0,.14); }
-  li.best:hover { background: #dde5f5; }
-  body.hide-best li.best { display: none; }
-
-  .left { display: flex; align-items: center; gap: 10px; flex-grow: 1; min-width: 0; }
-  .right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-  a { text-decoration: none; color: #333; font-weight: 500; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis; }
-  a:hover { color: #007bff; text-decoration: underline; }
-  .tag { font-size: .78em; background: #e2e8f0; color: #475569; padding: 2px 6px;
-         border-radius: 4px; flex-shrink: 0; }
-  .tag-best { background: #4a6fa5; color: #fff; }
-  .new { font-size: .72em; background: #ff5252; color: #fff; padding: 2px 5px;
-         border-radius: 3px; flex-shrink: 0; }
-  .date { font-size: .85em; color: #888; }
-  .hide-btn { background: #ff4d4d; color: #fff; border: none; padding: 4px 9px;
-              border-radius: 4px; cursor: pointer; font-size: .8em; white-space: nowrap; }
-  .hide-btn:hover { background: #cc0000; }
-
-  /* ===== 모바일 ===== */
-  @media (max-width: 600px) {
-    body { margin: 10px; font-size: 17px; }
-    h2 { font-size: 1em; flex-direction: column; align-items: stretch; gap: 8px; }
-    .meta { text-align: left; font-size: .62em; line-height: 2; }
-    .controls { display: flex; gap: 8px; }
-    .btn { flex: 1; padding: 9px 6px; font-size: 1em; }
-
-    li { padding: 12px; gap: 8px; }
-
-    .left { flex-wrap: wrap; gap: 6px; }
-    a { white-space: normal; overflow: visible; text-overflow: clip;
-        font-size: 1.03em; line-height: 1.35; }
-
-    .tag, .new { font-size: .74em; }
-    .date { font-size: .82em; }
-    .hide-btn { padding: 7px 12px; font-size: .85em; }
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --line: #334155;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --today: #34d399;
   }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 20px 14px 40px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  h1 { margin: 0; font-size: 20px; font-weight: 700; }
+  .meta { font-size: 13px; color: var(--muted); }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  input[type="search"] {
+    flex: 1 1 220px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    font-size: 14px;
+    outline: none;
+  }
+  button {
+    padding: 9px 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button.active {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  ul.list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  li.row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  li.row:last-child { border-bottom: none; }
+  li.row:hover { background: rgba(255, 255, 255, 0.03); }
+  .num {
+    width: 30px;
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .title {
+    flex: 1;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    line-height: 1.45;
+    word-break: keep-all;
+  }
+  .title:hover { color: var(--accent); text-decoration: underline; }
+  .date {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .date.today { color: var(--today); font-weight: 600; }
+  .empty { padding: 28px; text-align: center; color: var(--muted); font-size: 14px; }
 </style>
 </head>
 <body>
-<h2>
-  <span class="title">📺 예능 리스트</span>
-  <span class="meta">
-    총 74개 · 갱신 2026-11-15 05:55 · 다음 11-15 17:55<br>
-    <span class="controls">
-      <button class="btn" id="bestToggle" data-count="10"
-              onclick="toggleBest()">BEST 접기 ▲</button>
-      <button class="btn" onclick="resetHidden()">숨김 초기화</button>
-    </span>
-  </span>
-</h2>
-<ul>
-<li class="row best" data-title="나 혼자 산다.E673.261113"><div class="left"><span class="tag tag-best">BEST</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034293&time=1794718811" target="_blank" rel="noreferrer">나 혼자 산다.E673.261113</a></div><div class="right"><span class="date">-</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row best" data-title="놀면 뭐하니.E352.261114"><div class="left"><span class="tag tag-best">BEST</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034296&time=1794718811" target="_blank" rel="noreferrer">놀면 뭐하니.E352.261114</a></div><div class="right"><span class="date">-</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row best" data-title="언더커버 셰프 - 멀리서 찾아온 벗.E03.261112"><div class="left"><span class="tag tag-best">BEST</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034284&time=1794718811" target="_blank" rel="noreferrer">언더커버 셰프 - 멀리서 찾아온 벗.E03.261112</a></div><div class="right"><span class="date">-</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row best" data-title="우리동네 플레이리스트.E01.261113"><div class="left"><span class="tag tag-best">BEST</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034291&time=1794718811" target="_blank" rel="noreferrer">우리동네 플레이리스트.E01.261113</a></div><div class="right"><span class="date">-</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row best" data-title="꼬리에 꼬리를 무는 그날 이야기 시즌3.E247.261112"><div class="left"><span class="tag tag-best">BEST</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034281&time=1794718811" target="_blank" rel="noreferrer">꼬리에 꼬리를 무는 그날 이야기 시즌3.E247.261112</a></div><div class="right"><span class="date">-</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row best" data-title="놀면 뭐하니.E350.261031"><div class="left"><span class="tag tag-best">BEST</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034140&time=1794718811" target="_blank" rel="noreferrer">놀면 뭐하니.E350.261031</a></div><div class="right"><span class="date">-</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row best" data-title="나 혼자 산다.E672.261106"><div class="left"><span class="tag tag-best">BEST</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034214&time=1794718811" target="_blank" rel="noreferrer">나 혼자 산다.E672.261106</a></div><div class="right"><span class="date">-</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row best" data-title="신인감독 김연경 2.E04.261101"><div class="left"><span class="tag tag-best">BEST</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034161&time=1794718811" target="_blank" rel="noreferrer">신인감독 김연경 2.E04.261101</a></div><div class="right"><span class="date">-</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row best" data-title="놀면 뭐하니.E351.261107"><div class="left"><span class="tag tag-best">BEST</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034217&time=1794718811" target="_blank" rel="noreferrer">놀면 뭐하니.E351.261107</a></div><div class="right"><span class="date">-</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row best" data-title="무엇이든 해줄지니 - 비서진.E10.261106"><div class="left"><span class="tag tag-best">BEST</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034213&time=1794718811" target="_blank" rel="noreferrer">무엇이든 해줄지니 - 비서진.E10.261106</a></div><div class="right"><span class="date">-</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="전지적 참견 시점.E425.261114"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034304&page=1" target="_blank" rel="noreferrer">전지적 참견 시점.E425.261114</a><span class="new">NEW</span></div><div class="right"><span class="date">01:43</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="속풀이쇼 동치미.E727.261114"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034303&page=1" target="_blank" rel="noreferrer">속풀이쇼 동치미.E727.261114</a><span class="new">NEW</span></div><div class="right"><span class="date">01:42</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="살림하는 남자들 시즌2.E469.261114"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034302&page=1" target="_blank" rel="noreferrer">살림하는 남자들 시즌2.E469.261114</a><span class="new">NEW</span></div><div class="right"><span class="date">00:32</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="언포게터블 듀엣 시즌2.E03.261114"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034301&page=1" target="_blank" rel="noreferrer">언포게터블 듀엣 시즌2.E03.261114</a></div><div class="right"><span class="date">11-14</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="니가 내라 독박투어.E03.261114"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034300&page=1" target="_blank" rel="noreferrer">니가 내라 독박투어.E03.261114</a></div><div class="right"><span class="date">11-14</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="아는 형님.E551.261114"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034299&page=1" target="_blank" rel="noreferrer">아는 형님.E551.261114</a></div><div class="right"><span class="date">11-14</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="지구마불 세계여행 4.E04.261114"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034298&page=1" target="_blank" rel="noreferrer">지구마불 세계여행 4.E04.261114</a></div><div class="right"><span class="date">11-14</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="불후의 명곡.E780.261114"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034297&page=1" target="_blank" rel="noreferrer">불후의 명곡.E780.261114</a></div><div class="right"><span class="date">11-14</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="영화가 좋다.E1030.261114"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034295&page=1" target="_blank" rel="noreferrer">영화가 좋다.E1030.261114</a></div><div class="right"><span class="date">11-14</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="접속 무비월드.E00.261114"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034294&page=1" target="_blank" rel="noreferrer">접속 무비월드.E00.261114</a></div><div class="right"><span class="date">11-14</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="금타는 금요일.E45.261113"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034292&page=1" target="_blank" rel="noreferrer">금타는 금요일.E45.261113</a></div><div class="right"><span class="date">11-14</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="용감한 형사들 시즌5.E29.261113"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034290&page=1" target="_blank" rel="noreferrer">용감한 형사들 시즌5.E29.261113</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="전현무계획 시즌4.E20.261113"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034289&page=1" target="_blank" rel="noreferrer">전현무계획 시즌4.E20.261113</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="백수 이세돌.E04.261113"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034288&page=1" target="_blank" rel="noreferrer">백수 이세돌.E04.261113</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="이십세기 힛-트쏭.E339.261113"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034287&page=1" target="_blank" rel="noreferrer">이십세기 힛-트쏭.E339.261113</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="맛있는 녀석들.E589.261113"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034286&page=1" target="_blank" rel="noreferrer">맛있는 녀석들.E589.261113</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="벌거벗은 한국사 3.E06.261112"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034285&page=1" target="_blank" rel="noreferrer">벌거벗은 한국사 3.E06.261112</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="지옥의 짬밥.E02.261113"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034283&page=1" target="_blank" rel="noreferrer">지옥의 짬밥.E02.261113</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="미스트롯 포유.E25.261112"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034282&page=1" target="_blank" rel="noreferrer">미스트롯 포유.E25.261112</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="나는 SOLO 그 후, 사랑은 계속된다.E191.261112"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034280&page=1" target="_blank" rel="noreferrer">나는 SOLO 그 후, 사랑은 계속된다.E191.261112</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="이혼숙려캠프.E108.261112"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034279&page=1" target="_blank" rel="noreferrer">이혼숙려캠프.E108.261112</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="구해줘! 홈즈.E373.261112"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034278&page=1" target="_blank" rel="noreferrer">구해줘! 홈즈.E373.261112</a></div><div class="right"><span class="date">11-13</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="티처스 시즌3 - 재수전쟁.E05.261112"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034277&page=1" target="_blank" rel="noreferrer">티처스 시즌3 - 재수전쟁.E05.261112</a></div><div class="right"><span class="date">11-12</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="서인영의 유행꼰대.E057.261112"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034276&page=1" target="_blank" rel="noreferrer">서인영의 유행꼰대.E057.261112</a></div><div class="right"><span class="date">11-12</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="거장항준.E05.261112"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034275&page=1" target="_blank" rel="noreferrer">거장항준.E05.261112</a></div><div class="right"><span class="date">11-12</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="신상출시 편스토랑.E345.261112"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034274&page=1" target="_blank" rel="noreferrer">신상출시 편스토랑.E345.261112</a></div><div class="right"><span class="date">11-12</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="유 퀴즈 온 더 블럭.E368.261111"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034273&page=1" target="_blank" rel="noreferrer">유 퀴즈 온 더 블럭.E368.261111</a></div><div class="right"><span class="date">11-12</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="나는 SOLO.E279.261111"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034272&page=1" target="_blank" rel="noreferrer">나는 SOLO.E279.261111</a></div><div class="right"><span class="date">11-12</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="라디오 스타.E989.261111"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034271&page=1" target="_blank" rel="noreferrer">라디오 스타.E989.261111</a></div><div class="right"><span class="date">11-12</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="자랑할 개 있습니다.E01.261111"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034270&page=1" target="_blank" rel="noreferrer">자랑할 개 있습니다.E01.261111</a></div><div class="right"><span class="date">11-12</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="개와 늑대의 시간 시즌2.E42.261111"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034269&page=2" target="_blank" rel="noreferrer">개와 늑대의 시간 시즌2.E42.261111</a></div><div class="right"><span class="date">11-12</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="톡파원 25시.E232.261111"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034268&page=2" target="_blank" rel="noreferrer">톡파원 25시.E232.261111</a></div><div class="right"><span class="date">11-12</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="골 때리는 그녀들.E240.261111"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034267&page=2" target="_blank" rel="noreferrer">골 때리는 그녀들.E240.261111</a></div><div class="right"><span class="date">11-11</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="슈퍼맨이 돌아왔다.E643.261111"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034266&page=2" target="_blank" rel="noreferrer">슈퍼맨이 돌아왔다.E643.261111</a></div><div class="right"><span class="date">11-11</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="데블스 플랜 Debeulseu Peullaen The Devils Plan S03E05"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034265&page=2" target="_blank" rel="noreferrer">데블스 플랜 Debeulseu Peullaen The Devils Plan S03E05</a></div><div class="right"><span class="date">11-11</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="동상이몽 시즌2 - 너는 내운명.E461.261110"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034264&page=2" target="_blank" rel="noreferrer">동상이몽 시즌2 - 너는 내운명.E461.261110</a></div><div class="right"><span class="date">11-11</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="천만기인쇼.E07.261110"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034263&page=2" target="_blank" rel="noreferrer">천만기인쇼.E07.261110</a></div><div class="right"><span class="date">11-11</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="한문철의 블랙박스 리뷰.E194.261110"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034262&page=2" target="_blank" rel="noreferrer">한문철의 블랙박스 리뷰.E194.261110</a></div><div class="right"><span class="date">11-11</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="스모킹건.E164.261110"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034261&page=2" target="_blank" rel="noreferrer">스모킹건.E164.261110</a></div><div class="right"><span class="date">11-11</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="연애기숙학교 2기 돌싱N모솔.E02.261110"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034260&page=2" target="_blank" rel="noreferrer">연애기숙학교 2기 돌싱N모솔.E02.261110</a></div><div class="right"><span class="date">11-11</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="상남자의 여행법 in 마나도.E02.261110"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034259&page=2" target="_blank" rel="noreferrer">상남자의 여행법 in 마나도.E02.261110</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="틈만나면,.E65.261110"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034258&page=2" target="_blank" rel="noreferrer">틈만나면,.E65.261110</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="데블스 플랜 Debeulseu Peullaen The Devils Plan S03E04"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034257&page=2" target="_blank" rel="noreferrer">데블스 플랜 Debeulseu Peullaen The Devils Plan S03E04</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="데블스 플랜 Debeulseu Peullaen The Devils Plan S03E03"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034256&page=2" target="_blank" rel="noreferrer">데블스 플랜 Debeulseu Peullaen The Devils Plan S03E03</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="데블스 플랜 Debeulseu Peullaen The Devils Plan S03E02"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034255&page=2" target="_blank" rel="noreferrer">데블스 플랜 Debeulseu Peullaen The Devils Plan S03E02</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="데블스 플랜 Debeulseu Peullaen The Devils Plan S03E01"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034254&page=2" target="_blank" rel="noreferrer">데블스 플랜 Debeulseu Peullaen The Devils Plan S03E01</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="옥탑방의 문제아들.E333.261110"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034253&page=2" target="_blank" rel="noreferrer">옥탑방의 문제아들.E333.261110</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="심야괴담회 시즌6.E20.261109"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034252&page=2" target="_blank" rel="noreferrer">심야괴담회 시즌6.E20.261109</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="우리들의 발라드 시즌2.E06.261109"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034251&page=2" target="_blank" rel="noreferrer">우리들의 발라드 시즌2.E06.261109</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="트롯 키친 달리는 디너쇼.E06.261109"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034250&page=2" target="_blank" rel="noreferrer">트롯 키친 달리는 디너쇼.E06.261109</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="계약결혼.E07.261109"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034249&page=2" target="_blank" rel="noreferrer">계약결혼.E07.261109</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="탐정들의 영업비밀.E136.261109"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034248&page=2" target="_blank" rel="noreferrer">탐정들의 영업비밀.E136.261109</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="연애전쟁.E20.261109"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034247&page=2" target="_blank" rel="noreferrer">연애전쟁.E20.261109</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="빈칸채우기.E09.261109"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034246&page=2" target="_blank" rel="noreferrer">빈칸채우기.E09.261109</a></div><div class="right"><span class="date">11-10</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="말자쇼.E39.261109"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034245&page=2" target="_blank" rel="noreferrer">말자쇼.E39.261109</a></div><div class="right"><span class="date">11-09</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="오은영 리포트 - 결혼 지옥.E190.261109"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034244&page=2" target="_blank" rel="noreferrer">오은영 리포트 - 결혼 지옥.E190.261109</a></div><div class="right"><span class="date">11-09</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="히든아이.E109.261109"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034243&page=2" target="_blank" rel="noreferrer">히든아이.E109.261109</a></div><div class="right"><span class="date">11-09</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="식스센스: B사이드.E08"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034242&page=2" target="_blank" rel="noreferrer">식스센스: B사이드.E08</a></div><div class="right"><span class="date">11-09</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="디스이즈 현무로드.E08.261108"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034241&page=2" target="_blank" rel="noreferrer">디스이즈 현무로드.E08.261108</a></div><div class="right"><span class="date">11-09</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="개그콘서트.E147.261108"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034240&page=2" target="_blank" rel="noreferrer">개그콘서트.E147.261108</a></div><div class="right"><span class="date">11-09</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="신인감독 김연경 2.E05.261108"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034239&page=2" target="_blank" rel="noreferrer">신인감독 김연경 2.E05.261108</a></div><div class="right"><span class="date">11-09</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="미운 우리 새끼.E518.261108"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034238&page=2" target="_blank" rel="noreferrer">미운 우리 새끼.E518.261108</a></div><div class="right"><span class="date">11-08</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="밥값 하는 남자들.E06.261108"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034237&page=2" target="_blank" rel="noreferrer">밥값 하는 남자들.E06.261108</a></div><div class="right"><span class="date">11-08</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-<li class="row" data-title="이제 만나러 갑니다.E773.261108"><div class="left"><span class="tag">방영중</span><a href="https://www.torrentzoa.com/board.php?mode=view&b_id=tent&id=1034236&page=2" target="_blank" rel="noreferrer">이제 만나러 갑니다.E773.261108</a></div><div class="right"><span class="date">11-08</span><button class="hide-btn" onclick="hideAndRemember(this)">숨김</button></div></li>
-</ul>
+  <div class="wrap">
+    <div class="top">
+      <h1>예능 최신 목록</h1>
+      <div class="meta">갱신: 2026-11-15 06:30:56 · 총 <span id="count">70</span>건</div>
+    </div>
+    <div class="controls">
+      <input id="q" type="search" placeholder="프로그램명 검색..." oninput="applyFilter()">
+      <button id="todayBtn" type="button" onclick="toggleToday()">오늘만 보기</button>
+      <button id="refreshBtn" type="button" onclick="refreshNow()">새로고침</button>
+    </div>
+    <ul class="list" id="list">
+      <li class="row" data-today="1" data-title="전지적 참견 시점.e425.261114"><span class="num">1</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034304&amp;page=1" target="_blank" rel="noopener noreferrer">전지적 참견 시점.E425.261114</a><span class="date today">01:43</span></li>
+<li class="row" data-today="1" data-title="속풀이쇼 동치미.e727.261114"><span class="num">2</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034303&amp;page=1" target="_blank" rel="noopener noreferrer">속풀이쇼 동치미.E727.261114</a><span class="date today">01:42</span></li>
+<li class="row" data-today="1" data-title="살림하는 남자들 시즌2.e469.261114"><span class="num">3</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034302&amp;page=1" target="_blank" rel="noopener noreferrer">살림하는 남자들 시즌2.E469.261114</a><span class="date today">00:32</span></li>
+<li class="row" data-today="0" data-title="언포게터블 듀엣 시즌2.e03.261114"><span class="num">4</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034301&amp;page=1" target="_blank" rel="noopener noreferrer">언포게터블 듀엣 시즌2.E03.261114</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="니가 내라 독박투어.e03.261114"><span class="num">5</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034300&amp;page=1" target="_blank" rel="noopener noreferrer">니가 내라 독박투어.E03.261114</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="아는 형님.e551.261114"><span class="num">6</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034299&amp;page=1" target="_blank" rel="noopener noreferrer">아는 형님.E551.261114</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="지구마불 세계여행 4.e04.261114"><span class="num">7</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034298&amp;page=1" target="_blank" rel="noopener noreferrer">지구마불 세계여행 4.E04.261114</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="불후의 명곡.e780.261114"><span class="num">8</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034297&amp;page=1" target="_blank" rel="noopener noreferrer">불후의 명곡.E780.261114</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="놀면 뭐하니.e352.261114"><span class="num">9</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034296&amp;page=1" target="_blank" rel="noopener noreferrer">놀면 뭐하니.E352.261114</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="영화가 좋다.e1030.261114"><span class="num">10</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034295&amp;page=1" target="_blank" rel="noopener noreferrer">영화가 좋다.E1030.261114</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="접속 무비월드.e00.261114"><span class="num">11</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034294&amp;page=1" target="_blank" rel="noopener noreferrer">접속 무비월드.E00.261114</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="나 혼자 산다.e673.261113"><span class="num">12</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034293&amp;page=1" target="_blank" rel="noopener noreferrer">나 혼자 산다.E673.261113</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="금타는 금요일.e45.261113"><span class="num">13</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034292&amp;page=1" target="_blank" rel="noopener noreferrer">금타는 금요일.E45.261113</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="우리동네 플레이리스트.e01.261113"><span class="num">14</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034291&amp;page=1" target="_blank" rel="noopener noreferrer">우리동네 플레이리스트.E01.261113</a><span class="date">11-14</span></li>
+<li class="row" data-today="0" data-title="용감한 형사들 시즌5.e29.261113"><span class="num">15</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034290&amp;page=1" target="_blank" rel="noopener noreferrer">용감한 형사들 시즌5.E29.261113</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="전현무계획 시즌4.e20.261113"><span class="num">16</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034289&amp;page=1" target="_blank" rel="noopener noreferrer">전현무계획 시즌4.E20.261113</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="백수 이세돌.e04.261113"><span class="num">17</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034288&amp;page=1" target="_blank" rel="noopener noreferrer">백수 이세돌.E04.261113</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="이십세기 힛-트쏭.e339.261113"><span class="num">18</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034287&amp;page=1" target="_blank" rel="noopener noreferrer">이십세기 힛-트쏭.E339.261113</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="맛있는 녀석들.e589.261113"><span class="num">19</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034286&amp;page=1" target="_blank" rel="noopener noreferrer">맛있는 녀석들.E589.261113</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="벌거벗은 한국사 3.e06.261112"><span class="num">20</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034285&amp;page=1" target="_blank" rel="noopener noreferrer">벌거벗은 한국사 3.E06.261112</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="언더커버 셰프 - 멀리서 찾아온 벗.e03.261112"><span class="num">21</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034284&amp;page=1" target="_blank" rel="noopener noreferrer">언더커버 셰프 - 멀리서 찾아온 벗.E03.261112</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="지옥의 짬밥.e02.261113"><span class="num">22</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034283&amp;page=1" target="_blank" rel="noopener noreferrer">지옥의 짬밥.E02.261113</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="미스트롯 포유.e25.261112"><span class="num">23</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034282&amp;page=1" target="_blank" rel="noopener noreferrer">미스트롯 포유.E25.261112</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="꼬리에 꼬리를 무는 그날 이야기 시즌3.e247.261112"><span class="num">24</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034281&amp;page=1" target="_blank" rel="noopener noreferrer">꼬리에 꼬리를 무는 그날 이야기 시즌3.E247.261112</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="나는 solo 그 후, 사랑은 계속된다.e191.261112"><span class="num">25</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034280&amp;page=1" target="_blank" rel="noopener noreferrer">나는 SOLO 그 후, 사랑은 계속된다.E191.261112</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="이혼숙려캠프.e108.261112"><span class="num">26</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034279&amp;page=1" target="_blank" rel="noopener noreferrer">이혼숙려캠프.E108.261112</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="구해줘! 홈즈.e373.261112"><span class="num">27</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034278&amp;page=1" target="_blank" rel="noopener noreferrer">구해줘! 홈즈.E373.261112</a><span class="date">11-13</span></li>
+<li class="row" data-today="0" data-title="티처스 시즌3 - 재수전쟁.e05.261112"><span class="num">28</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034277&amp;page=1" target="_blank" rel="noopener noreferrer">티처스 시즌3 - 재수전쟁.E05.261112</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="서인영의 유행꼰대.e057.261112"><span class="num">29</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034276&amp;page=1" target="_blank" rel="noopener noreferrer">서인영의 유행꼰대.E057.261112</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="거장항준.e05.261112"><span class="num">30</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034275&amp;page=1" target="_blank" rel="noopener noreferrer">거장항준.E05.261112</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="신상출시 편스토랑.e345.261112"><span class="num">31</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034274&amp;page=1" target="_blank" rel="noopener noreferrer">신상출시 편스토랑.E345.261112</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="유 퀴즈 온 더 블럭.e368.261111"><span class="num">32</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034273&amp;page=1" target="_blank" rel="noopener noreferrer">유 퀴즈 온 더 블럭.E368.261111</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="나는 solo.e279.261111"><span class="num">33</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034272&amp;page=1" target="_blank" rel="noopener noreferrer">나는 SOLO.E279.261111</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="라디오 스타.e989.261111"><span class="num">34</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034271&amp;page=1" target="_blank" rel="noopener noreferrer">라디오 스타.E989.261111</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="자랑할 개 있습니다.e01.261111"><span class="num">35</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034270&amp;page=1" target="_blank" rel="noopener noreferrer">자랑할 개 있습니다.E01.261111</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="자랑할 개 있습니다.e01.261111"><span class="num">36</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034270&amp;page=2" target="_blank" rel="noopener noreferrer">자랑할 개 있습니다.E01.261111</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="개와 늑대의 시간 시즌2.e42.261111"><span class="num">37</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034269&amp;page=2" target="_blank" rel="noopener noreferrer">개와 늑대의 시간 시즌2.E42.261111</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="톡파원 25시.e232.261111"><span class="num">38</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034268&amp;page=2" target="_blank" rel="noopener noreferrer">톡파원 25시.E232.261111</a><span class="date">11-12</span></li>
+<li class="row" data-today="0" data-title="골 때리는 그녀들.e240.261111"><span class="num">39</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034267&amp;page=2" target="_blank" rel="noopener noreferrer">골 때리는 그녀들.E240.261111</a><span class="date">11-11</span></li>
+<li class="row" data-today="0" data-title="슈퍼맨이 돌아왔다.e643.261111"><span class="num">40</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034266&amp;page=2" target="_blank" rel="noopener noreferrer">슈퍼맨이 돌아왔다.E643.261111</a><span class="date">11-11</span></li>
+<li class="row" data-today="0" data-title="데블스 플랜 debeulseu peullaen the devils plan s03e05"><span class="num">41</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034265&amp;page=2" target="_blank" rel="noopener noreferrer">데블스 플랜 Debeulseu Peullaen The Devils Plan S03E05</a><span class="date">11-11</span></li>
+<li class="row" data-today="0" data-title="동상이몽 시즌2 - 너는 내운명.e461.261110"><span class="num">42</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034264&amp;page=2" target="_blank" rel="noopener noreferrer">동상이몽 시즌2 - 너는 내운명.E461.261110</a><span class="date">11-11</span></li>
+<li class="row" data-today="0" data-title="천만기인쇼.e07.261110"><span class="num">43</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034263&amp;page=2" target="_blank" rel="noopener noreferrer">천만기인쇼.E07.261110</a><span class="date">11-11</span></li>
+<li class="row" data-today="0" data-title="한문철의 블랙박스 리뷰.e194.261110"><span class="num">44</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034262&amp;page=2" target="_blank" rel="noopener noreferrer">한문철의 블랙박스 리뷰.E194.261110</a><span class="date">11-11</span></li>
+<li class="row" data-today="0" data-title="스모킹건.e164.261110"><span class="num">45</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034261&amp;page=2" target="_blank" rel="noopener noreferrer">스모킹건.E164.261110</a><span class="date">11-11</span></li>
+<li class="row" data-today="0" data-title="연애기숙학교 2기 돌싱n모솔.e02.261110"><span class="num">46</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034260&amp;page=2" target="_blank" rel="noopener noreferrer">연애기숙학교 2기 돌싱N모솔.E02.261110</a><span class="date">11-11</span></li>
+<li class="row" data-today="0" data-title="상남자의 여행법 in 마나도.e02.261110"><span class="num">47</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034259&amp;page=2" target="_blank" rel="noopener noreferrer">상남자의 여행법 in 마나도.E02.261110</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="틈만나면,.e65.261110"><span class="num">48</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034258&amp;page=2" target="_blank" rel="noopener noreferrer">틈만나면,.E65.261110</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="데블스 플랜 debeulseu peullaen the devils plan s03e04"><span class="num">49</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034257&amp;page=2" target="_blank" rel="noopener noreferrer">데블스 플랜 Debeulseu Peullaen The Devils Plan S03E04</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="데블스 플랜 debeulseu peullaen the devils plan s03e03"><span class="num">50</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034256&amp;page=2" target="_blank" rel="noopener noreferrer">데블스 플랜 Debeulseu Peullaen The Devils Plan S03E03</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="데블스 플랜 debeulseu peullaen the devils plan s03e02"><span class="num">51</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034255&amp;page=2" target="_blank" rel="noopener noreferrer">데블스 플랜 Debeulseu Peullaen The Devils Plan S03E02</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="데블스 플랜 debeulseu peullaen the devils plan s03e01"><span class="num">52</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034254&amp;page=2" target="_blank" rel="noopener noreferrer">데블스 플랜 Debeulseu Peullaen The Devils Plan S03E01</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="옥탑방의 문제아들.e333.261110"><span class="num">53</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034253&amp;page=2" target="_blank" rel="noopener noreferrer">옥탑방의 문제아들.E333.261110</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="심야괴담회 시즌6.e20.261109"><span class="num">54</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034252&amp;page=2" target="_blank" rel="noopener noreferrer">심야괴담회 시즌6.E20.261109</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="우리들의 발라드 시즌2.e06.261109"><span class="num">55</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034251&amp;page=2" target="_blank" rel="noopener noreferrer">우리들의 발라드 시즌2.E06.261109</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="트롯 키친 달리는 디너쇼.e06.261109"><span class="num">56</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034250&amp;page=2" target="_blank" rel="noopener noreferrer">트롯 키친 달리는 디너쇼.E06.261109</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="계약결혼.e07.261109"><span class="num">57</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034249&amp;page=2" target="_blank" rel="noopener noreferrer">계약결혼.E07.261109</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="탐정들의 영업비밀.e136.261109"><span class="num">58</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034248&amp;page=2" target="_blank" rel="noopener noreferrer">탐정들의 영업비밀.E136.261109</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="연애전쟁.e20.261109"><span class="num">59</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034247&amp;page=2" target="_blank" rel="noopener noreferrer">연애전쟁.E20.261109</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="빈칸채우기.e09.261109"><span class="num">60</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034246&amp;page=2" target="_blank" rel="noopener noreferrer">빈칸채우기.E09.261109</a><span class="date">11-10</span></li>
+<li class="row" data-today="0" data-title="말자쇼.e39.261109"><span class="num">61</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034245&amp;page=2" target="_blank" rel="noopener noreferrer">말자쇼.E39.261109</a><span class="date">11-09</span></li>
+<li class="row" data-today="0" data-title="오은영 리포트 - 결혼 지옥.e190.261109"><span class="num">62</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034244&amp;page=2" target="_blank" rel="noopener noreferrer">오은영 리포트 - 결혼 지옥.E190.261109</a><span class="date">11-09</span></li>
+<li class="row" data-today="0" data-title="히든아이.e109.261109"><span class="num">63</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034243&amp;page=2" target="_blank" rel="noopener noreferrer">히든아이.E109.261109</a><span class="date">11-09</span></li>
+<li class="row" data-today="0" data-title="식스센스: b사이드.e08"><span class="num">64</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034242&amp;page=2" target="_blank" rel="noopener noreferrer">식스센스: B사이드.E08</a><span class="date">11-09</span></li>
+<li class="row" data-today="0" data-title="디스이즈 현무로드.e08.261108"><span class="num">65</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034241&amp;page=2" target="_blank" rel="noopener noreferrer">디스이즈 현무로드.E08.261108</a><span class="date">11-09</span></li>
+<li class="row" data-today="0" data-title="개그콘서트.e147.261108"><span class="num">66</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034240&amp;page=2" target="_blank" rel="noopener noreferrer">개그콘서트.E147.261108</a><span class="date">11-09</span></li>
+<li class="row" data-today="0" data-title="신인감독 김연경 2.e05.261108"><span class="num">67</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034239&amp;page=2" target="_blank" rel="noopener noreferrer">신인감독 김연경 2.E05.261108</a><span class="date">11-09</span></li>
+<li class="row" data-today="0" data-title="미운 우리 새끼.e518.261108"><span class="num">68</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034238&amp;page=2" target="_blank" rel="noopener noreferrer">미운 우리 새끼.E518.261108</a><span class="date">11-08</span></li>
+<li class="row" data-today="0" data-title="밥값 하는 남자들.e06.261108"><span class="num">69</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034237&amp;page=2" target="_blank" rel="noopener noreferrer">밥값 하는 남자들.E06.261108</a><span class="date">11-08</span></li>
+<li class="row" data-today="0" data-title="이제 만나러 갑니다.e773.261108"><span class="num">70</span><a class="title" href="https://www.torrentzoa.com/board.php?mode=view&amp;b_id=tent&amp;id=1034236&amp;page=2" target="_blank" rel="noopener noreferrer">이제 만나러 갑니다.E773.261108</a><span class="date">11-08</span></li>
+    </ul>
+  </div>
 <script>
-const BEST_KEY = 'bestCollapsed';
-const HIDDEN_KEY = 'hiddenShows';
-
-function bestBtn() { return document.getElementById('bestToggle'); }
-
-function applyBest(collapsed, save) {
-  document.body.classList.toggle('hide-best', collapsed);
-  const b = bestBtn();
-  if (b) {
-    const n = b.dataset.count || '';
-    b.textContent = (collapsed ? 'BEST 펼치기 ▼' : 'BEST 접기 ▲') + (n ? ' (' + n + ')' : '');
-    b.setAttribute('aria-expanded', String(!collapsed));
+  let onlyToday = false;
+  function applyFilter() {
+    const kw = document.getElementById("q").value.trim().toLowerCase();
+    const rows = document.querySelectorAll("#list .row");
+    let visible = 0;
+    rows.forEach((el) => {
+      const matchKw = !kw || el.dataset.title.includes(kw);
+      const matchToday = !onlyToday || el.dataset.today === "1";
+      const show = matchKw && matchToday;
+      el.style.display = show ? "flex" : "none";
+      if (show) visible += 1;
+    });
+    document.getElementById("count").textContent = visible;
   }
-  if (save) { try { localStorage.setItem(BEST_KEY, collapsed ? '1' : '0'); } catch (e) {} }
-}
-function toggleBest() {
-  applyBest(!document.body.classList.contains('hide-best'), true);
-}
-
-function getBaseName(t) {
-  return (t || '').split(/\.\s*E\d+/i)[0].split(/\s+E\d+/i)[0].split(' - ')[0].trim();
-}
-function loadHidden() {
-  try { return JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]'); } catch (e) { return []; }
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-  applyBest(localStorage.getItem(BEST_KEY) === '1', false);
-
-  if (!document.querySelector('li.best')) {
-    const b = bestBtn();
-    if (b) b.style.display = 'none';
+  function toggleToday() {
+    onlyToday = !onlyToday;
+    document.getElementById("todayBtn").classList.toggle("active", onlyToday);
+    applyFilter();
   }
-
-  const hidden = loadHidden();
-  document.querySelectorAll('li').forEach(li => {
-    if (hidden.includes(getBaseName(li.getAttribute('data-title')))) li.style.display = 'none';
-  });
-});
-
-function hideAndRemember(btn) {
-  const li = btn.closest('li');
-  const key = getBaseName(li.getAttribute('data-title'));
-  const hidden = loadHidden();
-  if (!hidden.includes(key)) {
-    hidden.push(key);
-    try { localStorage.setItem(HIDDEN_KEY, JSON.stringify(hidden)); } catch (e) {}
+  async function refreshNow() {
+    const btn = document.getElementById("refreshBtn");
+    btn.disabled = true;
+    btn.textContent = "갱신 중...";
+    try {
+      const res = await fetch("/refresh");
+      const msg = await res.text();
+      if (res.ok) {
+        location.reload();
+      } else {
+        alert(msg);
+      }
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "새로고침";
+    }
   }
-  li.style.display = 'none';
-}
-
-function resetHidden() {
-  if (!confirm('숨긴 프로그램 목록을 모두 지울까요?')) return;
-  try { localStorage.removeItem(HIDDEN_KEY); } catch (e) {}
-  location.reload();
-}
 </script>
 </body>
 </html>

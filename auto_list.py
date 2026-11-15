@@ -100,10 +100,19 @@ def lan_ip():
         s.close()
 
 
+def is_github_action_mode():
+    return (
+        "--github-action" in sys.argv
+        or "--once" in sys.argv
+        or os.environ.get("GITHUB_ACTIONS") == "true"
+        or os.environ.get("RUN_ONCE") == "1"
+    )
+
+
 def make_driver():
     options = Options()
     options.page_load_strategy = "eager"
-    if HEADLESS:
+    if HEADLESS or is_github_action_mode():
         options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
@@ -237,7 +246,7 @@ def collect_items():
                 print(f"[경고] {page}페이지 목록 대기 시간 초과, 현재 DOM으로 파싱합니다.", flush=True)
 
             html = driver.page_source
-            if idx == 0 and debug_file:
+            if idx == 0 and debug_file and not is_github_action_mode():
                 os.makedirs(OUT_DIR, exist_ok=True)
                 with open(debug_file, "w", encoding="utf-8") as f:
                     f.write(html)
@@ -463,7 +472,7 @@ def update_once(force=False):
             f.write(html)
 
         _last_refresh_ts = time.time()
-        print(f"[{updated_at}] 저장 완료: {output_file} ({len(items)}건)")
+        print(f"[{updated_at}] 저장 완료: {output_file} ({len(items)}건)", flush=True)
         return True, "updated"
 
 
@@ -501,24 +510,26 @@ def scheduler_loop():
         try:
             update_once(force=True)
         except Exception as exc:
-            print(f"[자동갱신 오류] {exc}", file=sys.stderr)
+            print(f"[자동갱신 오류] {exc}", file=sys.stderr, flush=True)
 
 
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     update_once(force=True)
+
+    if is_github_action_mode():
+        print("[종료] 일회성 실행 완료 (--github-action)", flush=True)
+        return
+
     if OPEN_BROWSER:
         open_in_browser(output_file)
-
-    if os.environ.get("RUN_ONCE") == "1":
-        return
 
     t = threading.Thread(target=scheduler_loop, daemon=True)
     t.start()
 
     handler = partial(AppHandler, directory=OUT_DIR)
     server = ThreadingHTTPServer(("0.0.0.0", PORT), handler)
-    print(f"서버 실행 중: http://{lan_ip()}:{PORT} (종료: Ctrl+C)")
+    print(f"서버 실행 중: http://{lan_ip()}:{PORT} (종료: Ctrl+C)", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -13,6 +13,7 @@ from urllib.parse import urlparse, parse_qs
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -25,6 +26,7 @@ LIST_URL = BASE + "board.php?mode=lists&b_id=tent&page={page}"
 PAGES = (1, 2)                 # 수집할 페이지
 HEADLESS = True                # False면 크롬 창을 띄우고 최소화
 INTERVAL = 12 * 60 * 60        # 갱신 주기: 12시간
+PAGE_LOAD_TIMEOUT = 12         # 페이지 로딩 최대 대기(초)
 
 OUT_DIR = os.environ.get(
     "GITHUB_WORKSPACE",
@@ -41,7 +43,7 @@ OPEN_BROWSER = False           # True면 갱신 후 PC 브라우저도 열기
 META_REFRESH = 0               # 보고 있는 창 자동 새로고침(초). 0=끔
 
 NOTICE_WORDS = ("notice", "공지")
-SKIP_WIDGET_CLASSES = ("best", "hot", "popular", "rank")
+SKIP_WIDGET_RE = re.compile(r"(?:^|[^a-z])(?:best|hot|popular|rank)(?:[^a-z]|$)")
 
 # ===================== 제목 정리 =====================
 BRACKET_PREFIX = re.compile(
@@ -100,20 +102,48 @@ def lan_ip():
 
 def make_driver():
     options = Options()
+    options.page_load_strategy = "eager"
     if HEADLESS:
         options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-background-networking")
     options.add_argument("--disable-notifications")
+    options.add_argument("--mute-audio")
+    options.add_argument("--blink-settings=imagesEnabled=false")
     options.add_argument("--window-size=1600,1000")
     options.add_argument("--log-level=3")
     options.add_experimental_option("excludeSwitches", ["enable-logging"])
+    options.add_experimental_option(
+        "prefs",
+        {
+            "profile.managed_default_content_settings.images": 2,
+            "profile.default_content_setting_values.notifications": 2,
+        },
+    )
     options.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         " (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     )
     driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
+    driver.set_script_timeout(PAGE_LOAD_TIMEOUT)
+    try:
+        driver.execute_cdp_cmd("Network.enable", {})
+        driver.execute_cdp_cmd(
+            "Network.setBlockedURLs",
+            {
+                "urls": [
+                    "*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg",
+                    "*.woff", "*.woff2", "*.ttf", "*.mp4",
+                    "*googlesyndication*", "*doubleclick*", "*adservice*", "*analytics*",
+                ]
+            },
+        )
+    except Exception:
+        pass
     if not HEADLESS:
         try:
             driver.minimize_window()
@@ -138,8 +168,7 @@ def open_in_browser(path):
 
 # ===================== 파싱 =====================
 def is_excluded_widget(tag):
-    chain = attr_chain(tag)
-    return any(re.search(rf"(?:^|[^a-z]){w}(?:[^a-z]|$)", chain) for w in SKIP_WIDGET_CLASSES)
+    return bool(SKIP_WIDGET_RE.search(attr_chain(tag)))
 
 
 def parse_page(soup):
@@ -185,17 +214,28 @@ def parse_page(soup):
 
 
 def collect_items():
+    started_at = time.time()
     driver = make_driver()
     all_items = []
     seen_urls = set()
     try:
         for idx, page in enumerate(PAGES):
             url = LIST_URL.format(page=page)
-            driver.get(url)
-            WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='mode=view']"))
-            )
-            time.sleep(1.0)
+            print(f"[수집 중] {page}페이지 로딩...", flush=True)
+            try:
+                driver.get(url)
+            except TimeoutException:
+                try:
+                    driver.execute_script("window.stop();")
+                except Exception:
+                    pass
+            try:
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "a[href*='mode=view']"))
+                )
+            except TimeoutException:
+                print(f"[경고] {page}페이지 목록 대기 시간 초과, 현재 DOM으로 파싱합니다.", flush=True)
+
             html = driver.page_source
             if idx == 0 and debug_file:
                 os.makedirs(OUT_DIR, exist_ok=True)
@@ -208,6 +248,7 @@ def collect_items():
                     all_items.append(item)
     finally:
         driver.quit()
+    print(f"[수집 완료] {len(all_items)}건 ({time.time() - started_at:.1f}초)", flush=True)
     return all_items
 
 

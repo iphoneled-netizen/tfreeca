@@ -108,7 +108,8 @@ def clean_title(title, board_id="tent"):
         t = MOVIE_RELEASE_TAIL.sub("", t)
     else:
         t = RELEASE_TAIL.sub("", t)
-    t = re.sub(r"\s{2,}", " ", t).strip(" ._-")
+    t = re.sub(r"[\[(][^\]\)]*$", "", t)
+    t = re.sub(r"\s{2,}", " ", t).strip(" ._-/|")
     return t
 
 
@@ -838,6 +839,179 @@ __META_REFRESH__
     right: 18px;
     bottom: 18px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  }
+  @media (max-width: 640px) {
+    body {
+      padding: 12px 10px 76px;
+    }
+    .top {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .top-right {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .top-right button {
+      padding: 7px 6px;
+      font-size: 12px;
+      border-radius: 10px;
+      white-space: nowrap;
+      text-align: center;
+    }
+    .meta {
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .board-switch {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      gap: 6px;
+      margin-bottom: 6px;
+      padding-bottom: 2px;
+    }
+    .board-switch::-webkit-scrollbar {
+      display: none;
+    }
+    .board-btn {
+      flex-shrink: 0;
+      padding: 7px 14px;
+      font-size: 14px;
+      border-radius: 999px;
+    }
+
+    .toolbar {
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .tabs {
+      gap: 6px;
+    }
+    .tabs button[data-tab="fav"],
+    #pinFavBtn {
+      display: none !important;
+    }
+    .tabs button,
+    .movie-controls button,
+    .movie-controls select {
+      height: 34px;
+      padding: 0 11px;
+      font-size: 12px;
+      border-radius: 999px;
+    }
+    .movie-controls {
+      width: 100%;
+      gap: 6px;
+    }
+    #movieGroupControls {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+    .search-wrap {
+      grid-column: 1 / 2;
+      flex: none;
+      width: 100%;
+    }
+    #sortSel {
+      grid-column: 2 / 3;
+      height: 40px;
+      padding: 0 10px;
+      font-size: 13px;
+      border-radius: 10px;
+    }
+    .site-search-form {
+      grid-column: 1 / -1;
+      flex: none;
+      width: 100%;
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 6px;
+    }
+    .site-search-selects {
+      gap: 4px;
+    }
+    .site-search-selects select,
+    input[type="search"],
+    .site-search-btn {
+      height: 40px;
+      font-size: 13px;
+      border-radius: 10px;
+    }
+    .site-search-selects select {
+      padding: 0 6px;
+      max-width: 88px;
+    }
+    .site-search-input-wrap {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .site-search-btn {
+      padding: 0 12px;
+      font-size: 12px;
+    }
+
+    ul.list {
+      border-radius: 12px;
+    }
+    li.row {
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 6px;
+      padding: 12px;
+    }
+    li.row.is-sub-row {
+      padding-left: 16px;
+      border-left: 3px solid var(--accent);
+    }
+    .fav-btn,
+    .num,
+    .copy-btn,
+    .date {
+      display: none !important;
+    }
+    .title {
+      flex: 1 0 100%;
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+    .tag,
+    .ver-btn,
+    .today-mark {
+      font-size: 11px;
+      border-radius: 6px;
+    }
+    .ver-btn {
+      padding: 3px 8px;
+    }
+    .hide-btn {
+      margin-left: auto;
+      padding: 5px 11px;
+      font-size: 12px;
+      border-radius: 999px;
+    }
+
+    .to-top {
+      right: 12px;
+      bottom: 12px;
+      padding: 8px 14px;
+      font-size: 12px;
+      border-radius: 999px;
+    }
   }
 </style>
 </head>
